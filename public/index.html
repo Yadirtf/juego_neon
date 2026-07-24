@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Batalla Neón - Online</title>
+    <style>
+        body {
+            background: #0d0d12;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            position: relative;
+        }
+
+        #loginScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(13, 13, 18, 0.98);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #loginScreen h1 {
+            color: #fff;
+            text-shadow: 0 0 10px #fff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #aliasInput {
+            padding: 12px;
+            font-size: 18px;
+            border-radius: 5px;
+            border: 2px solid #555;
+            background: #111;
+            color: #fff;
+            margin-bottom: 20px;
+            text-align: center;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        #aliasInput:focus {
+            border-color: #00ffff;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        #joinBtn {
+            padding: 12px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            background: #00ffff;
+            color: #000;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+
+        #joinBtn:hover {
+            background: #fff;
+            box-shadow: 0 0 15px #00ffff;
+        }
+
+        #scoreboard {
+            display: flex;
+            justify-content: space-between;
+            width: 600px;
+            margin-bottom: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .score-p1 {
+            color: #00ffff;
+            text-shadow: 0 0 8px #00ffff;
+        }
+
+        .score-p2 {
+            color: #ff00ff;
+            text-shadow: 0 0 8px #ff00ff;
+        }
+
+        canvas {
+            background: #111;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+            border: 2px solid #333;
+            border-radius: 4px;
+        }
+
+        #msg {
+            margin-top: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            height: 24px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Pantalla de Login -->
+    <div id="loginScreen">
+        <h1>Batalla Neón</h1>
+        <p id="roleMsg">Conectando al servidor...</p>
+        <input type="text" id="aliasInput" placeholder="Tu Alias" maxlength="12">
+        <button id="joinBtn">Entrar a la Sala</button>
+    </div>
+
+    <!-- Interfaz de Juego -->
+    <div id="scoreboard">
+        <div class="score-p1"><span id="nameP1">Esperando...</span> : <span id="scoreP1">0</span></div>
+        <div class="score-p2"><span id="scoreP2">0</span> : <span id="nameP2">Esperando...</span></div>
+    </div>
+
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <div id="msg">...</div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 10;
+        let myRole = '';
+
+        // Si se pierde la conexión, recarga la página para evitar que se quede trabado
+        socket.on('disconnect', () => {
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('roleMsg').innerText = 'Servidor desconectado. Recargando...';
+            document.getElementById('roleMsg').style.color = 'red';
+            setTimeout(() => window.location.reload(), 2000);
+        });
+
+        // Enviar Alias al servidor
+        document.getElementById('joinBtn').addEventListener('click', () => {
+            const alias = document.getElementById('aliasInput').value.trim();
+            socket.emit('setAlias', alias);
+            document.getElementById('loginScreen').style.display = 'none';
+        });
+
+        socket.on('init', (data) => {
+            myRole = data.role;
+            const roleP = document.getElementById('roleMsg');
+            if (myRole === 'p1') { roleP.innerText = 'Serás el Jugador CYAN'; roleP.style.color = '#00ffff'; }
+            else if (myRole === 'p2') { roleP.innerText = 'Serás el Jugador MAGENTA'; roleP.style.color = '#ff00ff'; }
+            else { roleP.innerText = 'Sala llena. Espectador.'; document.getElementById('joinBtn').innerText = 'Ver partida'; }
+        });
+
+        socket.on('updateData', (data) => {
+            document.getElementById('nameP1').innerText = data.names.p1;
+            document.getElementById('nameP2').innerText = data.names.p2;
+            document.getElementById('scoreP1').innerText = data.scores.p1;
+            document.getElementById('scoreP2').innerText = data.scores.p2;
+        });
+
+        socket.on('state', (state) => {
+            const msgDiv = document.getElementById('msg');
+
+            if (state.status === 'waiting') {
+                msgDiv.innerText = "Esperando al rival...";
+                msgDiv.style.color = '#fff';
+            } else if (state.status === 'countdown') {
+                msgDiv.innerText = "¡PREPÁRATE!";
+                msgDiv.style.color = '#fff';
+            } else if (state.status === 'gameover') {
+                if (!state.p1.alive && !state.p2.alive) { msgDiv.innerText = "¡Empate! Revancha en breve..."; msgDiv.style.color = '#fff'; }
+                else if (!state.p1.alive) { msgDiv.innerText = `¡Gana ${document.getElementById('nameP2').innerText}!`; msgDiv.style.color = '#ff00ff'; }
+                else { msgDiv.innerText = `¡Gana ${document.getElementById('nameP1').innerText}!`; msgDiv.style.color = '#00ffff'; }
+            } else {
+                msgDiv.innerText = "¡A jugar!";
+            }
+
+            // Limpiar lienzo
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dibujar jugadores
+            const drawP = (p) => {
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = p.color;
+                p.trail.forEach(t => ctx.fillRect(t.x * gridSize, t.y * gridSize, gridSize - 1, gridSize - 1));
+                ctx.fillRect(p.x * gridSize, p.y * gridSize, gridSize - 1, gridSize - 1);
+                ctx.shadowBlur = 0;
+            };
+
+            drawP(state.p1);
+            drawP(state.p2);
+
+            // Dibujar cuenta regresiva GIGANTE
+            if (state.status === 'countdown') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 120px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = '#fff';
+
+                const text = state.countdownTime > 0 ? state.countdownTime : "¡YA!";
+                ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+                ctx.shadowBlur = 0;
+            }
+        });
+
+        // Controles de teclado
+        document.addEventListener('keydown', e => {
+            const key = e.key.toLowerCase();
+            if (key === 'w' || key === 'arrowup') socket.emit('move', 'up');
+            if (key === 's' || key === 'arrowdown') socket.emit('move', 'down');
+            if (key === 'a' || key === 'arrowleft') socket.emit('move', 'left');
+            if (key === 'd' || key === 'arrowright') socket.emit('move', 'right');
+        });
+    </script>
+</body>
+
+</html>
