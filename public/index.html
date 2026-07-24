@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Batalla Neón - Online</title>
     <style>
         body {
@@ -12,10 +13,13 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             position: relative;
+            overflow: hidden;
+            touch-action: none;
+            /* Evita que la pantalla haga scroll al jugar */
         }
 
         #loginScreen {
@@ -37,6 +41,7 @@
             text-shadow: 0 0 10px #fff;
             text-transform: uppercase;
             letter-spacing: 2px;
+            text-align: center;
         }
 
         #aliasInput {
@@ -50,6 +55,8 @@
             text-align: center;
             outline: none;
             transition: 0.3s;
+            width: 80%;
+            max-width: 300px;
         }
 
         #aliasInput:focus {
@@ -75,12 +82,23 @@
             box-shadow: 0 0 15px #00ffff;
         }
 
+        /* Contenedor principal responsive */
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 600px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
         #scoreboard {
             display: flex;
             justify-content: space-between;
-            width: 600px;
+            width: 100%;
             margin-bottom: 10px;
-            font-size: 24px;
+            font-size: clamp(16px, 4vw, 24px);
             font-weight: bold;
             text-transform: uppercase;
         }
@@ -95,11 +113,15 @@
             text-shadow: 0 0 8px #ff00ff;
         }
 
+        /* El canvas mantiene su lógica de 600x600 pero visualmente se adapta al 100% del contenedor */
         canvas {
             background: #111;
             box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
             border: 2px solid #333;
             border-radius: 4px;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            object-fit: contain;
         }
 
         #msg {
@@ -107,6 +129,60 @@
             font-size: 18px;
             font-weight: bold;
             height: 24px;
+            text-align: center;
+        }
+
+        /* Controles Móviles (Ocultos por defecto en PC) */
+        #mobileControls {
+            display: none;
+            grid-template-areas:
+                ". up ."
+                "left down right";
+            gap: 10px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 250px;
+        }
+
+        /* Se muestran solo si la pantalla es menor a 768px (celulares/tablets pequeñas) */
+        @media (max-width: 768px) {
+            #mobileControls {
+                display: grid;
+            }
+        }
+
+        .btn-dir {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #444;
+            color: #fff;
+            border-radius: 10px;
+            height: 60px;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .btn-dir:active {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        #btnUp {
+            grid-area: up;
+        }
+
+        #btnDown {
+            grid-area: down;
+        }
+
+        #btnLeft {
+            grid-area: left;
+        }
+
+        #btnRight {
+            grid-area: right;
         }
     </style>
 </head>
@@ -121,14 +197,25 @@
         <button id="joinBtn">Entrar a la Sala</button>
     </div>
 
-    <!-- Interfaz de Juego -->
-    <div id="scoreboard">
-        <div class="score-p1"><span id="nameP1">Esperando...</span> : <span id="scoreP1">0</span></div>
-        <div class="score-p2"><span id="scoreP2">0</span> : <span id="nameP2">Esperando...</span></div>
-    </div>
+    <div id="gameContainer">
+        <!-- Interfaz de Juego -->
+        <div id="scoreboard">
+            <div class="score-p1"><span id="nameP1">Esperando...</span> : <span id="scoreP1">0</span></div>
+            <div class="score-p2"><span id="scoreP2">0</span> : <span id="nameP2">Esperando...</span></div>
+        </div>
 
-    <canvas id="gameCanvas" width="600" height="600"></canvas>
-    <div id="msg">...</div>
+        <!-- El canvas mantiene resolución interna de 600x600 para la lógica -->
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <div id="msg">...</div>
+
+        <!-- Controles Móviles -->
+        <div id="mobileControls">
+            <div class="btn-dir" id="btnUp">⬆️</div>
+            <div class="btn-dir" id="btnLeft">⬅️</div>
+            <div class="btn-dir" id="btnDown">⬇️</div>
+            <div class="btn-dir" id="btnRight">➡️</div>
+        </div>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -138,7 +225,6 @@
         const gridSize = 10;
         let myRole = '';
 
-        // Si se pierde la conexión, recarga la página para evitar que se quede trabado
         socket.on('disconnect', () => {
             document.getElementById('loginScreen').style.display = 'flex';
             document.getElementById('roleMsg').innerText = 'Servidor desconectado. Recargando...';
@@ -146,7 +232,6 @@
             setTimeout(() => window.location.reload(), 2000);
         });
 
-        // Enviar Alias al servidor
         document.getElementById('joinBtn').addEventListener('click', () => {
             const alias = document.getElementById('aliasInput').value.trim();
             socket.emit('setAlias', alias);
@@ -159,6 +244,21 @@
             if (myRole === 'p1') { roleP.innerText = 'Serás el Jugador CYAN'; roleP.style.color = '#00ffff'; }
             else if (myRole === 'p2') { roleP.innerText = 'Serás el Jugador MAGENTA'; roleP.style.color = '#ff00ff'; }
             else { roleP.innerText = 'Sala llena. Espectador.'; document.getElementById('joinBtn').innerText = 'Ver partida'; }
+
+            // Colorear botones móviles según tu rol
+            if (myRole === 'p1' || myRole === 'p2') {
+                const color = myRole === 'p1' ? '#00ffff' : '#ff00ff';
+                document.querySelectorAll('.btn-dir').forEach(btn => {
+                    btn.addEventListener('pointerdown', function () {
+                        this.style.borderColor = color;
+                        this.style.boxShadow = `0 0 10px ${color}`;
+                    });
+                    btn.addEventListener('pointerup', function () {
+                        this.style.borderColor = '#444';
+                        this.style.boxShadow = 'none';
+                    });
+                });
+            }
         });
 
         socket.on('updateData', (data) => {
@@ -185,11 +285,9 @@
                 msgDiv.innerText = "¡A jugar!";
             }
 
-            // Limpiar lienzo
             ctx.fillStyle = '#111';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Dibujar jugadores
             const drawP = (p) => {
                 ctx.fillStyle = p.color;
                 ctx.shadowBlur = 10;
@@ -202,7 +300,6 @@
             drawP(state.p1);
             drawP(state.p2);
 
-            // Dibujar cuenta regresiva GIGANTE
             if (state.status === 'countdown') {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -220,7 +317,7 @@
             }
         });
 
-        // Controles de teclado
+        // Controles de teclado (para PC)
         document.addEventListener('keydown', e => {
             const key = e.key.toLowerCase();
             if (key === 'w' || key === 'arrowup') socket.emit('move', 'up');
@@ -228,6 +325,21 @@
             if (key === 'a' || key === 'arrowleft') socket.emit('move', 'left');
             if (key === 'd' || key === 'arrowright') socket.emit('move', 'right');
         });
+
+        // Controles táctiles (para Móvil)
+        const bindTouch = (id, dir) => {
+            const btn = document.getElementById(id);
+            // pointerdown detecta toques en móvil sin disparar doble evento
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault(); // Evita que se haga zoom o scroll al presionar repetidamente
+                socket.emit('move', dir);
+            });
+        };
+
+        bindTouch('btnUp', 'up');
+        bindTouch('btnDown', 'down');
+        bindTouch('btnLeft', 'left');
+        bindTouch('btnRight', 'right');
     </script>
 </body>
 
