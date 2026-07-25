@@ -4,328 +4,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Batalla Neón - Online TRON Edition</title>
+    <title>Batalla Neón - Multijugador Multi-Sala TRON</title>
     <!-- Google Fonts: Orbitron & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
-    <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: manipulation;
-        }
-
-        body {
-            background: #060913;
-            background-image: 
-                radial-gradient(circle at 50% 20%, rgba(0, 255, 255, 0.08) 0%, transparent 60%),
-                radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.08) 0%, transparent 60%);
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* Pantalla de Login con Glassmorphism */
-        #loginScreen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(6, 9, 19, 0.92);
-            backdrop-filter: blur(16px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 20;
-            padding: 20px;
-        }
-
-        .cyber-card {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(0, 255, 255, 0.25);
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.15), inset 0 0 15px rgba(0, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 35px 25px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            max-width: 420px;
-            width: 100%;
-            text-align: center;
-        }
-
-        h1.cyber-title {
-            font-family: 'Orbitron', sans-serif;
-            font-size: clamp(24px, 6vw, 36px);
-            font-weight: 900;
-            margin: 0 0 10px 0;
-            background: linear-gradient(135deg, #00ffff 0%, #ffffff 50%, #ff00ff 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }
-
-        #roleMsg {
-            font-size: 15px;
-            margin-bottom: 25px;
-            color: #94a3b8;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        #aliasInput {
-            padding: 14px 18px;
-            font-size: 16px;
-            font-family: 'Orbitron', sans-serif;
-            border-radius: 8px;
-            border: 1.5px solid rgba(255, 255, 255, 0.15);
-            background: rgba(10, 15, 30, 0.9);
-            color: #00ffff;
-            margin-bottom: 20px;
-            text-align: center;
-            outline: none;
-            transition: all 0.3s ease;
-            width: 100%;
-            letter-spacing: 1px;
-        }
-
-        #aliasInput:focus {
-            border-color: #00ffff;
-            box-shadow: 0 0 18px rgba(0, 255, 255, 0.4);
-            background: rgba(15, 23, 42, 1);
-        }
-
-        #joinBtn {
-            width: 100%;
-            padding: 14px;
-            font-size: 16px;
-            font-family: 'Orbitron', sans-serif;
-            cursor: pointer;
-            background: linear-gradient(135deg, #00ffff 0%, #00b8d4 100%);
-            color: #060913;
-            font-weight: 800;
-            border: none;
-            border-radius: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-        }
-
-        #joinBtn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.6);
-            background: linear-gradient(135deg, #ffffff 0%, #00ffff 100%);
-        }
-
-        #joinBtn:active {
-            transform: translateY(1px);
-        }
-
-        /* Contenedor Principal */
-        #gameContainer {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            max-width: 620px;
-            padding: 12px;
-            box-sizing: border-box;
-        }
-
-        /* Scoreboard & Meta Info */
-        #topBar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            margin-bottom: 12px;
-            padding: 10px 16px;
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-        }
-
-        .score-box {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-family: 'Orbitron', sans-serif;
-            font-weight: 800;
-            font-size: clamp(14px, 3.5vw, 20px);
-        }
-
-        .score-p1 {
-            color: #00ffff;
-            text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
-        }
-
-        .score-p2 {
-            color: #ff00ff;
-            text-shadow: 0 0 10px rgba(255, 0, 255, 0.6);
-        }
-
-        .score-num {
-            background: rgba(0, 0, 0, 0.4);
-            padding: 4px 12px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        #pingDisplay {
-            font-size: 11px;
-            color: #64748b;
-            font-family: monospace;
-        }
-
-        /* Canvas */
-        #canvasWrapper {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 1 / 1;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 0 35px rgba(0, 255, 255, 0.15), 0 0 10px rgba(0, 0, 0, 0.8);
-            border: 2px solid rgba(0, 255, 255, 0.3);
-        }
-
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            background: #090d18;
-        }
-
-        /* Barra de Reacciones Rápidas */
-        #reactionBar {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            width: 100%;
-            margin-top: 10px;
-            padding: 8px 12px;
-            background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(0, 255, 255, 0.15);
-            border-radius: 12px;
-        }
-
-        .btn-emoji {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            font-size: 20px;
-            border-radius: 8px;
-            padding: 6px 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            user-select: none;
-        }
-
-        .btn-emoji:hover {
-            background: rgba(0, 255, 255, 0.2);
-            border-color: #00ffff;
-            transform: scale(1.15);
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
-        }
-
-        .btn-emoji:active {
-            transform: scale(0.95);
-        }
-
-        #msg {
-            margin-top: 10px;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 16px;
-            font-weight: 700;
-            height: 24px;
-            text-align: center;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        /* Controles Móviles */
-        #mobileControls {
-            display: none;
-            grid-template-areas:
-                ". up ."
-                "left down right";
-            gap: 12px;
-            margin-top: 15px;
-            width: 100%;
-            max-width: 260px;
-        }
-
-        @media (max-width: 768px) {
-            #mobileControls {
-                display: grid;
-            }
-        }
-
-        .btn-dir {
-            background: rgba(15, 23, 42, 0.8);
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            color: #fff;
-            border-radius: 12px;
-            height: 55px;
-            font-size: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background 0.1s, transform 0.1s;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-
-        .btn-dir:active {
-            transform: scale(0.94);
-            background: rgba(0, 255, 255, 0.2);
-        }
-
-        #btnUp { grid-area: up; }
-        #btnDown { grid-area: down; }
-        #btnLeft { grid-area: left; }
-        #btnRight { grid-area: right; }
-    </style>
+    <!-- Estilos Separados -->
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-    <!-- Pantalla de Login / Sala -->
-    <div id="loginScreen">
-        <div class="cyber-card">
-            <h1 class="cyber-title">BATALLA NEÓN</h1>
-            <p id="roleMsg">Conectando con la red neural...</p>
-            <input type="text" id="aliasInput" placeholder="TU ALIAS" maxlength="12" autocomplete="off">
-            <button id="joinBtn">ENTRAR A LA SALA</button>
+    <!-- Pantalla de Lobby Multi-Sala -->
+    <div id="lobbyScreen">
+        <div class="lobby-container">
+            <div class="cyber-header">
+                <h1 class="cyber-title">BATALLA NEÓN</h1>
+                <p class="cyber-subtitle">Plataforma Multijugador en Tiempo Real</p>
+            </div>
+
+            <!-- Identificación de Jugador -->
+            <div class="cyber-card">
+                <h2 class="card-title">👤 Tu Identificación</h2>
+                <input type="text" id="aliasInput" class="cyber-input" placeholder="INGRESA TU ALIAS (Ej: Tron_01)" maxlength="12" autocomplete="off">
+            </div>
+
+            <!-- Crear o Unirse por Código -->
+            <div class="cyber-card">
+                <h2 class="card-title">⚡ Crear o Ingresar a una Sala</h2>
+                
+                <div class="input-row">
+                    <input type="text" id="roomNameInput" class="cyber-input" placeholder="Nombre de tu sala (Opcional)" maxlength="20">
+                    <button id="createRoomBtn" class="cyber-btn">CREAR SALA ➕</button>
+                </div>
+
+                <div class="input-row" style="margin-top: 5px;">
+                    <input type="text" id="roomCodeInput" class="cyber-input" placeholder="CÓDIGO DE SALA (Ej: NEON-7X2A)" maxlength="10" autocomplete="off">
+                    <button id="joinCodeBtn" class="cyber-btn cyber-btn-secondary">UNIRSE CON CÓDIGO 🔑</button>
+                </div>
+            </div>
+
+            <!-- Explorador de Salas Activas (Espectadores / Duelos) -->
+            <div class="cyber-card">
+                <h2 class="card-title">🌐 Salas Activas Públicas</h2>
+                <div id="roomsListContainer" class="rooms-grid">
+                    <div class="no-rooms-msg">Cargando salas activas...</div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Aplicación Principal -->
+    <!-- Pantalla de Juego de la Sala -->
     <div id="gameContainer">
         <div id="topBar">
-            <div class="score-box score-p1">
-                <span id="nameP1">P1</span>
-                <span class="score-num" id="scoreP1">0</span>
+            <div class="hud-row-top">
+                <div class="room-header-tag">
+                    <span>SALA:</span>
+                    <span id="currentRoomCode" class="room-code-badge clickable-badge" title="Haz clic para copiar el código 📋">NEON-----</span>
+                    <span id="currentRoomName" style="color: #94a3b8; font-weight: 400; font-size: 12px;">(--)</span>
+                </div>
+                <div class="hud-actions">
+                    <button id="copyCodeBtn" class="cyber-btn cyber-btn-secondary" style="padding: 6px 12px; font-size: 11px;">CÓDIGO 📋</button>
+                    <button id="copyLinkBtn" class="cyber-btn cyber-btn-secondary" style="padding: 6px 12px; font-size: 11px;">ENLACE 🔗</button>
+                    <button id="leaveRoomBtn" class="cyber-btn cyber-btn-danger" style="padding: 6px 12px; font-size: 11px;">SALIR 🚪</button>
+                </div>
             </div>
-            <div id="pingDisplay">PING: <span id="pingVal">--</span>ms</div>
-            <div class="score-box score-p2">
-                <span class="score-num" id="scoreP2">0</span>
-                <span id="nameP2">P2</span>
+
+            <div class="hud-row-scores">
+                <div class="score-box score-p1">
+                    <span id="nameP1">P1</span>
+                    <span class="score-num" id="scoreP1">0</span>
+                </div>
+                <div id="pingDisplay">PING: <span id="pingVal">--</span>ms</div>
+                <div class="score-box score-p2">
+                    <span class="score-num" id="scoreP2">0</span>
+                    <span id="nameP2">P2</span>
+                </div>
             </div>
         </div>
 
@@ -354,470 +108,12 @@
         </div>
     </div>
 
+    <!-- Popup Toast -->
+    <div id="toast">¡Código copiado al portapapeles! 📋</div>
+
+    <!-- Scripts -->
     <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const gridSize = 10;
-        let myRole = '';
-
-        let latestState = null;
-        let particles = [];
-        let floatingReactions = [];
-        let previousStatus = 'waiting';
-        let previousCountdown = -1;
-
-        // --- SISTEMA DE AUDIO (Web Audio API) ---
-        class SoundEngine {
-            constructor() {
-                this.ctx = null;
-            }
-            init() {
-                if (!this.ctx) {
-                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                if (this.ctx.state === 'suspended') {
-                    this.ctx.resume();
-                }
-            }
-            playTurn() {
-                if (!this.ctx) return;
-                try {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(440, this.ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.08);
-                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start();
-                    osc.stop(this.ctx.currentTime + 0.08);
-                } catch (e) {}
-            }
-            playBeep(high = false) {
-                if (!this.ctx) return;
-                try {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(high ? 880 : 440, this.ctx.currentTime);
-                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start();
-                    osc.stop(this.ctx.currentTime + 0.15);
-                } catch (e) {}
-            }
-            playExplosion() {
-                if (!this.ctx) return;
-                try {
-                    const bufferSize = this.ctx.sampleRate * 0.4;
-                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-                    const data = buffer.getChannelData(0);
-                    for (let i = 0; i < bufferSize; i++) {
-                        data[i] = Math.random() * 2 - 1;
-                    }
-                    const noise = this.ctx.createBufferSource();
-                    noise.buffer = buffer;
-
-                    const filter = this.ctx.createBiquadFilter();
-                    filter.type = 'lowpass';
-                    filter.frequency.setValueAtTime(800, this.ctx.currentTime);
-                    filter.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.4);
-
-                    const gain = this.ctx.createGain();
-                    gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
-
-                    noise.connect(filter);
-                    filter.connect(gain);
-                    gain.connect(this.ctx.destination);
-
-                    noise.start();
-                    noise.stop(this.ctx.currentTime + 0.4);
-                } catch (e) {}
-            }
-            playReactionSound() {
-                if (!this.ctx) return;
-                try {
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(1046.50, this.ctx.currentTime + 0.15);
-                    gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start();
-                    osc.stop(this.ctx.currentTime + 0.15);
-                } catch (e) {}
-            }
-        }
-        const audio = new SoundEngine();
-
-        // Inicializar Audio en interacción
-        document.addEventListener('pointerdown', () => audio.init(), { once: true });
-
-        // --- PING / LATENCIA ---
-        setInterval(() => {
-            const start = Date.now();
-            socket.emit('pingCheck', () => {
-                const latency = Date.now() - start;
-                document.getElementById('pingVal').innerText = latency;
-            });
-        }, 3000);
-
-        socket.on('disconnect', () => {
-            document.getElementById('loginScreen').style.display = 'flex';
-            document.getElementById('roleMsg').innerText = 'Conexión perdida. Reconectando...';
-            document.getElementById('roleMsg').style.color = '#ff4757';
-        });
-
-        document.getElementById('joinBtn').addEventListener('click', () => {
-            audio.init();
-            const alias = document.getElementById('aliasInput').value.trim();
-            socket.emit('setAlias', alias);
-            document.getElementById('loginScreen').style.display = 'none';
-        });
-
-        socket.on('init', (data) => {
-            myRole = data.role;
-            const roleP = document.getElementById('roleMsg');
-            if (myRole === 'p1') { roleP.innerText = 'Serás el Jugador CYAN (#00ffff)'; roleP.style.color = '#00ffff'; }
-            else if (myRole === 'p2') { roleP.innerText = 'Serás el Jugador MAGENTA (#ff00ff)'; roleP.style.color = '#ff00ff'; }
-            else { roleP.innerText = 'Sala llena. Modo Espectador.'; document.getElementById('joinBtn').innerText = 'Ver partida'; }
-
-            if (myRole === 'p1' || myRole === 'p2') {
-                const color = myRole === 'p1' ? '#00ffff' : '#ff00ff';
-                document.querySelectorAll('.btn-dir').forEach(btn => {
-                    btn.style.borderColor = color;
-                });
-            }
-        });
-
-        socket.on('updateData', (data) => {
-            document.getElementById('nameP1').innerText = data.names.p1;
-            document.getElementById('nameP2').innerText = data.names.p2;
-            document.getElementById('scoreP1').innerText = data.scores.p1;
-            document.getElementById('scoreP2').innerText = data.scores.p2;
-        });
-
-        // --- RECEPCIÓN DE ESTADO DE RED ---
-        socket.on('state', (state) => {
-            // Sonido de cuenta regresiva
-            if (state.status === 'countdown' && state.countdownTime !== previousCountdown) {
-                audio.playBeep(state.countdownTime === 0);
-                previousCountdown = state.countdownTime;
-            }
-
-            // Explosión al morir
-            if (state.status === 'gameover' && previousStatus === 'playing') {
-                audio.playExplosion();
-                createExplosionParticles(state);
-            }
-
-            previousStatus = state.status;
-            latestState = state;
-        });
-
-        // --- RECEPCIÓN DE REACCIONES RÁPIDAS ---
-        socket.on('reaction', ({ role, emoji }) => {
-            audio.playReactionSound();
-
-            let rx = canvas.width / 2;
-            let ry = canvas.height / 2;
-
-            if (latestState) {
-                if (role === 'p1' && latestState.p1) {
-                    rx = latestState.p1.x * gridSize + gridSize / 2;
-                    ry = latestState.p1.y * gridSize - 15;
-                } else if (role === 'p2' && latestState.p2) {
-                    rx = latestState.p2.x * gridSize + gridSize / 2;
-                    ry = latestState.p2.y * gridSize - 15;
-                }
-            }
-
-            floatingReactions.push({
-                x: Math.max(30, Math.min(canvas.width - 30, rx)),
-                y: Math.max(30, Math.min(canvas.height - 30, ry)),
-                emoji: emoji,
-                alpha: 1,
-                scale: 0.3,
-                vy: -1.2,
-                color: role === 'p1' ? '#00ffff' : (role === 'p2' ? '#ff00ff' : '#ffffff')
-            });
-        });
-
-        function sendReaction(emoji) {
-            audio.init();
-            socket.emit('reaction', emoji);
-        }
-
-        document.querySelectorAll('.btn-emoji').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const emoji = btn.getAttribute('data-emoji');
-                sendReaction(emoji);
-            });
-        });
-
-        // --- SISTEMA DE PARTÍCULAS NEÓN ---
-        function createExplosionParticles(state) {
-            const addP = (x, y, color) => {
-                for (let i = 0; i < 35; i++) {
-                    const angle = Math.random() * Math.PI * 2;
-                    const speed = Math.random() * 6 + 2;
-                    particles.push({
-                        x: x * gridSize + gridSize / 2,
-                        y: y * gridSize + gridSize / 2,
-                        vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed,
-                        size: Math.random() * 4 + 2,
-                        color: color,
-                        alpha: 1,
-                        decay: Math.random() * 0.03 + 0.02
-                    });
-                }
-            };
-
-            if (!state.p1.alive) addP(state.p1.x, state.p1.y, '#00ffff');
-            if (!state.p2.alive) addP(state.p2.x, state.p2.y, '#ff00ff');
-        }
-
-        // --- BUCLE DE RENDERIZADO OPTIMIZADO (60 FPS requestAnimationFrame) ---
-        function renderLoop() {
-            requestAnimationFrame(renderLoop);
-
-            // Fondo Neón Cuadrícula estilo TRON
-            ctx.fillStyle = '#070b16';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Cuadrícula sutil
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.04)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            for (let x = 0; x < canvas.width; x += gridSize * 2) {
-                ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
-            }
-            for (let y = 0; y < canvas.height; y += gridSize * 2) {
-                ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
-            }
-            ctx.stroke();
-
-            if (!latestState) return;
-
-            const msgDiv = document.getElementById('msg');
-
-            if (latestState.status === 'waiting') {
-                msgDiv.innerText = "ESPERANDO AL RIVAL...";
-                msgDiv.style.color = '#94a3b8';
-            } else if (latestState.status === 'countdown') {
-                msgDiv.innerText = "¡PREPÁRATE!";
-                msgDiv.style.color = '#f1f5f9';
-            } else if (latestState.status === 'gameover') {
-                if (!latestState.p1.alive && !latestState.p2.alive) { 
-                    msgDiv.innerText = "¡EMPATE TÁCTICO! REVANCHA EN BREVE..."; 
-                    msgDiv.style.color = '#f1f5f9'; 
-                } else if (!latestState.p1.alive) { 
-                    msgDiv.innerText = `¡VICTORIA PARA ${document.getElementById('nameP2').innerText}!`; 
-                    msgDiv.style.color = '#ff00ff'; 
-                } else { 
-                    msgDiv.innerText = `¡VICTORIA PARA ${document.getElementById('nameP1').innerText}!`; 
-                    msgDiv.style.color = '#00ffff'; 
-                }
-            } else {
-                msgDiv.innerText = "PARTIDA EN CURSO";
-                msgDiv.style.color = '#00ffff';
-            }
-
-            // DIBUJADO DE ESTELAS ULTRA OPTIMIZADO (Path stroke continuo, 0% Lag)
-            const drawPlayerOptimized = (p) => {
-                if (!p || (!p.alive && p.trail.length === 0)) return;
-
-                // Dibujar Estela como Trazado Continuo
-                if (p.trail.length > 0) {
-                    ctx.save();
-                    ctx.strokeStyle = p.color;
-                    ctx.lineWidth = gridSize - 2;
-                    ctx.lineCap = 'square';
-                    ctx.lineJoin = 'miter';
-                    ctx.shadowBlur = 12;
-                    ctx.shadowColor = p.color;
-
-                    ctx.beginPath();
-                    const first = p.trail[0];
-                    ctx.moveTo(first.x * gridSize + gridSize / 2, first.y * gridSize + gridSize / 2);
-                    for (let i = 1; i < p.trail.length; i++) {
-                        const pt = p.trail[i];
-                        ctx.lineTo(pt.x * gridSize + gridSize / 2, pt.y * gridSize + gridSize / 2);
-                    }
-                    if (p.alive) {
-                        ctx.lineTo(p.x * gridSize + gridSize / 2, p.y * gridSize + gridSize / 2);
-                    }
-                    ctx.stroke();
-                    ctx.restore();
-                }
-
-                // Cabeza de la Moto con Brillo Neón Especial
-                if (p.alive) {
-                    ctx.save();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.shadowBlur = 18;
-                    ctx.shadowColor = p.color;
-                    ctx.fillRect(p.x * gridSize, p.y * gridSize, gridSize - 1, gridSize - 1);
-                    ctx.restore();
-                }
-            };
-
-            drawPlayerOptimized(latestState.p1);
-            drawPlayerOptimized(latestState.p2);
-
-            // RENDERIZADO DE PARTÍCULAS
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const pt = particles[i];
-                pt.x += pt.vx;
-                pt.y += pt.vy;
-                pt.alpha -= pt.decay;
-
-                if (pt.alpha <= 0) {
-                    particles.splice(i, 1);
-                    continue;
-                }
-
-                ctx.save();
-                ctx.globalAlpha = pt.alpha;
-                ctx.fillStyle = pt.color;
-                ctx.shadowBlur = 8;
-                ctx.shadowColor = pt.color;
-                ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
-                ctx.restore();
-            }
-
-            // RENDERIZADO DE REACCIONES FLOTANTES (EMOJIS)
-            for (let i = floatingReactions.length - 1; i >= 0; i--) {
-                const r = floatingReactions[i];
-                r.y += r.vy;
-                r.alpha -= 0.012;
-                if (r.scale < 1) r.scale += 0.05;
-
-                if (r.alpha <= 0) {
-                    floatingReactions.splice(i, 1);
-                    continue;
-                }
-
-                ctx.save();
-                ctx.globalAlpha = r.alpha;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                
-                // Globito contenedor de la carita
-                ctx.fillStyle = 'rgba(6, 9, 19, 0.85)';
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = r.color;
-                ctx.beginPath();
-                ctx.arc(r.x, r.y, 22 * r.scale, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.strokeStyle = r.color;
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                ctx.font = `${Math.floor(22 * r.scale)}px sans-serif`;
-                ctx.fillText(r.emoji, r.x, r.y);
-                ctx.restore();
-            }
-
-            // OVERLAY DE CUENTA REGRESIVA
-            if (latestState.status === 'countdown') {
-                ctx.fillStyle = 'rgba(6, 9, 19, 0.75)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                ctx.save();
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '900 110px "Orbitron", sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.shadowBlur = 30;
-                ctx.shadowColor = '#00ffff';
-
-                const text = latestState.countdownTime > 0 ? latestState.countdownTime : "¡YA!";
-                ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-                ctx.restore();
-            }
-        }
-
-        // Iniciar Bucle Visual
-        requestAnimationFrame(renderLoop);
-
-        // --- MANEJO DE ENTRADAS ---
-        function sendMove(dir) {
-            audio.playTurn();
-            socket.emit('move', dir);
-        }
-
-        // Teclado PC (Ignorar si se está escribiendo alias)
-        document.addEventListener('keydown', e => {
-            if (document.activeElement === document.getElementById('aliasInput')) return;
-
-            const key = e.key.toLowerCase();
-            if (key === 'w' || key === 'arrowup') sendMove('up');
-            if (key === 's' || key === 'arrowdown') sendMove('down');
-            if (key === 'a' || key === 'arrowleft') sendMove('left');
-            if (key === 'd' || key === 'arrowright') sendMove('right');
-
-            // Teclas numéricas 1 a 6 para caritas/reacciones
-            if (!isNaN(key) && parseInt(key) >= 1 && parseInt(key) <= 6) {
-                const emojis = ['🔥', '😎', '💀', '⚡', '👑', '😂'];
-                sendReaction(emojis[parseInt(key) - 1]);
-            }
-        });
-
-        // Controles Táctiles (Botones D-Pad)
-        const bindTouch = (id, dir) => {
-            const btn = document.getElementById(id);
-            btn.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                sendMove(dir);
-            });
-        };
-        bindTouch('btnUp', 'up');
-        bindTouch('btnDown', 'down');
-        bindTouch('btnLeft', 'left');
-        bindTouch('btnRight', 'right');
-
-        // Controles de Deslizamiento (Swipe en Canvas para Celulares)
-        let touchStartX = 0;
-        let touchStartY = 0;
-
-        canvas.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 0) {
-                touchStartX = e.touches[0].clientX;
-                touchStartY = e.touches[0].clientY;
-            }
-        }, { passive: true });
-
-        canvas.addEventListener('touchend', (e) => {
-            if (e.changedTouches.length === 0) return;
-            const deltaX = e.changedTouches[0].clientX - touchStartX;
-            const deltaY = e.changedTouches[0].clientY - touchStartY;
-            const minSwipe = 25; // Distancia mínima para detectar swipe
-
-            if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                if (Math.abs(deltaX) > minSwipe) {
-                    sendMove(deltaX > 0 ? 'right' : 'left');
-                }
-            } else {
-                if (Math.abs(deltaY) > minSwipe) {
-                    sendMove(deltaY > 0 ? 'down' : 'up');
-                }
-            }
-        }, { passive: true });
-
-    </script>
+    <script src="game.js" defer></script>
 </body>
 
 </html>

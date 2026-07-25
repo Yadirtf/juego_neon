@@ -1,0 +1,500 @@
+* {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+body {
+    background: #060913;
+    background-image: 
+        radial-gradient(circle at 50% 20%, rgba(0, 255, 255, 0.08) 0%, transparent 60%),
+        radial-gradient(circle at 80% 80%, rgba(255, 0, 255, 0.08) 0%, transparent 60%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Pantalla de Lobby con Glassmorphism */
+#lobbyScreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(6, 9, 19, 0.94);
+    backdrop-filter: blur(16px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    z-index: 50;
+    padding: 30px 20px;
+    overflow-y: auto;
+}
+
+.lobby-container {
+    max-width: 680px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin: auto;
+}
+
+.cyber-header {
+    text-align: center;
+}
+
+h1.cyber-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(28px, 6vw, 42px);
+    font-weight: 900;
+    margin: 0 0 8px 0;
+    background: linear-gradient(135deg, #00ffff 0%, #ffffff 50%, #ff00ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 25px rgba(0, 255, 255, 0.4);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.cyber-subtitle {
+    color: #94a3b8;
+    font-size: 14px;
+    margin: 0;
+}
+
+/* Tarjetas Glassmorphism */
+.cyber-card {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    box-shadow: 0 0 25px rgba(0, 255, 255, 0.1), inset 0 0 15px rgba(0, 255, 255, 0.03);
+    border-radius: 16px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.card-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00ffff;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+/* Inputs Cyberpunk */
+.cyber-input {
+    padding: 12px 16px;
+    font-size: 15px;
+    font-family: 'Orbitron', sans-serif;
+    border-radius: 8px;
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    background: rgba(10, 15, 30, 0.85);
+    color: #00ffff;
+    outline: none;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+.cyber-input:focus {
+    border-color: #00ffff;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.35);
+    background: rgba(15, 23, 42, 1);
+}
+
+.input-row {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+@media (max-width: 500px) {
+    .input-row {
+        flex-direction: column;
+    }
+}
+
+/* Botones */
+.cyber-btn {
+    padding: 12px 20px;
+    font-size: 14px;
+    font-family: 'Orbitron', sans-serif;
+    cursor: pointer;
+    background: linear-gradient(135deg, #00ffff 0%, #00b8d4 100%);
+    color: #060913;
+    font-weight: 800;
+    border: none;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.25s ease;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.25);
+    white-space: nowrap;
+}
+
+.cyber-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 25px rgba(0, 255, 255, 0.5);
+    background: linear-gradient(135deg, #ffffff 0%, #00ffff 100%);
+}
+
+.cyber-btn:active {
+    transform: translateY(1px);
+}
+
+.cyber-btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: none;
+}
+
+.cyber-btn-secondary:hover {
+    background: rgba(0, 255, 255, 0.2);
+    border-color: #00ffff;
+    color: #00ffff;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+}
+
+.cyber-btn-danger {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    box-shadow: none;
+}
+
+.cyber-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.8);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+}
+
+/* Lista de Salas Activas */
+.rooms-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.room-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(10, 15, 30, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    transition: border-color 0.2s;
+}
+
+.room-item:hover {
+    border-color: rgba(0, 255, 255, 0.4);
+}
+
+.room-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.room-name-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.room-name {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: #f8fafc;
+}
+
+.room-code-badge {
+    background: rgba(0, 255, 255, 0.15);
+    color: #00ffff;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 255, 255, 0.3);
+}
+
+.clickable-badge {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.clickable-badge:hover {
+    background: rgba(0, 255, 255, 0.35);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+    transform: scale(1.05);
+}
+
+.room-details {
+    font-size: 12px;
+    color: #94a3b8;
+    display: flex;
+    gap: 12px;
+}
+
+.status-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.status-waiting {
+    background: rgba(234, 179, 8, 0.2);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.status-playing {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.no-rooms-msg {
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+    padding: 20px;
+}
+
+/* Juego Principal Container */
+#gameContainer {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 640px;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+/* HUD Top Bar */
+#topBar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.hud-row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 8px 14px;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.room-header-tag {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #00ffff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hud-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.hud-row-scores {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 10px 16px;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+}
+
+.score-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 800;
+    font-size: clamp(14px, 3.5vw, 20px);
+}
+
+.score-p1 {
+    color: #00ffff;
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+}
+
+.score-p2 {
+    color: #ff00ff;
+    text-shadow: 0 0 10px rgba(255, 0, 255, 0.6);
+}
+
+.score-num {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#pingDisplay {
+    font-size: 11px;
+    color: #64748b;
+    font-family: monospace;
+}
+
+/* Canvas */
+#canvasWrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 35px rgba(0, 255, 255, 0.15), 0 0 10px rgba(0, 0, 0, 0.8);
+    border: 2px solid rgba(0, 255, 255, 0.3);
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #090d18;
+}
+
+/* Barra de Reacciones */
+#reactionBar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 12px;
+}
+
+.btn-emoji {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    font-size: 20px;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-emoji:hover {
+    background: rgba(0, 255, 255, 0.2);
+    border-color: #00ffff;
+    transform: scale(1.15);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+}
+
+#msg {
+    margin-top: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    height: 24px;
+    text-align: center;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Controles Móviles */
+#mobileControls {
+    display: none;
+    grid-template-areas:
+        ". up ."
+        "left down right";
+    gap: 12px;
+    margin-top: 15px;
+    width: 100%;
+    max-width: 260px;
+}
+
+@media (max-width: 768px) {
+    #mobileControls {
+        display: grid;
+    }
+}
+
+.btn-dir {
+    background: rgba(15, 23, 42, 0.8);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    border-radius: 12px;
+    height: 55px;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.1s, transform 0.1s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.btn-dir:active {
+    transform: scale(0.94);
+    background: rgba(0, 255, 255, 0.2);
+}
+
+#btnUp { grid-area: up; }
+#btnDown { grid-area: down; }
+#btnLeft { grid-area: left; }
+#btnRight { grid-area: right; }
+
+/* Toast Notificación */
+#toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: rgba(0, 255, 255, 0.95);
+    color: #060913;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 10px 22px;
+    border-radius: 20px;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+    transition: transform 0.3s ease;
+    z-index: 100;
+}
+
+#toast.show {
+    transform: translateX(-50%) translateY(0);
+}

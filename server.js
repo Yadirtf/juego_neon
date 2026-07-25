@@ -12,19 +12,19 @@ const gridSize = 10;
 const width = 600 / gridSize;
 const height = 600 / gridSize;
 
-// Variables globales para la sala
-let players = { p1: null, p2: null };
-let gameData = {
-    names: { p1: 'Esperando...', p2: 'Esperando...' },
-    ready: { p1: false, p2: false },
-    scores: { p1: 0, p2: 0 }
-};
+// Almacenamiento dinámico de salas (Multi-Sala)
+const rooms = new Map();
 
-let gameState = resetGame();
-let gameLoop;
-let countdownInterval;
+function generateRoomId() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'NEON-';
+    for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
 
-function resetGame() {
+function createGameState() {
     return {
         p1: { x: 10, y: Math.floor(height / 2), vx: 1, vy: 0, nextVx: 1, nextVy: 0, trail: [], alive: true, color: '#00ffff' },
         p2: { x: width - 10, y: Math.floor(height / 2), vx: -1, vy: 0, nextVx: -1, nextVy: 0, trail: [], alive: true, color: '#ff00ff' },
@@ -33,45 +33,152 @@ function resetGame() {
     };
 }
 
+function getRoomsList() {
+    const list = [];
+    for (const [id, room] of rooms.entries()) {
+        const playerCount = (room.players.p1 ? 1 : 0) + (room.players.p2 ? 1 : 0);
+        const spectatorCount = room.spectators.size;
+        
+        list.push({
+            id: id,
+            name: room.name,
+            p1Name: room.gameData.names.p1,
+            p2Name: room.gameData.names.p2,
+            playerCount: playerCount,
+            spectatorCount: spectatorCount,
+            status: room.gameState.status
+        });
+    }
+    return list;
+}
+
+function broadcastRoomsList() {
+    io.emit('roomsList', getRoomsList());
+}
+
 io.on('connection', (socket) => {
-    let role = 'spectator';
-    if (!players.p1) { players.p1 = socket.id; role = 'p1'; }
-    else if (!players.p2) { players.p2 = socket.id; role = 'p2'; }
+    socket.currentRoomId = null;
+    socket.role = null;
 
-    console.log(`[+] Jugador conectado: ${role} (ID: ${socket.id})`);
+    // Enviar lista inicial de salas públicas
+    socket.emit('roomsList', getRoomsList());
 
-    // Enviar datos iniciales
-    socket.emit('init', { role, gameData });
-    io.emit('updateData', gameData);
-    socket.emit('state', gameState);
-
-    // Medición de latencia / ping
     socket.on('pingCheck', (callback) => {
         if (typeof callback === 'function') callback();
     });
 
-    // Cuando el jugador da clic en "Entrar a la Sala"
-    socket.on('setAlias', (alias) => {
-        const finalAlias = alias || (role === 'p1' ? 'Cyan' : 'Magenta');
-        console.log(`[>] ${role} está listo con el alias: ${finalAlias}`);
+    socket.on('getRooms', () => {
+        socket.emit('roomsList', getRoomsList());
+    });
 
-        if (role === 'p1') { gameData.names.p1 = finalAlias; gameData.ready.p1 = true; }
-        if (role === 'p2') { gameData.names.p2 = finalAlias; gameData.ready.p2 = true; }
+    // Crear una nueva sala
+    socket.on('createRoom', ({ roomName, alias }, callback) => {
+        leaveCurrentRoom(socket);
 
-        io.emit('updateData', gameData);
-
-        // Si ambos están listos, arranca el conteo
-        if (gameData.ready.p1 && gameData.ready.p2 && gameState.status === 'waiting') {
-            startCountdown();
+        let roomId = generateRoomId();
+        while (rooms.has(roomId)) {
+            roomId = generateRoomId();
         }
+
+        const finalAlias = alias || 'Cyan';
+        const finalRoomName = roomName || `Sala de ${finalAlias}`;
+
+        const newRoom = {
+            id: roomId,
+            name: finalRoomName,
+            players: { p1: socket.id, p2: null },
+            spectators: new Set(),
+            gameData: {
+                names: { p1: finalAlias, p2: 'Esperando...' },
+                ready: { p1: true, p2: false },
+                scores: { p1: 0, p2: 0 }
+            },
+            gameState: createGameState(),
+            gameLoop: null,
+            countdownInterval: null
+        };
+
+        rooms.set(roomId, newRoom);
+        socket.join(roomId);
+        socket.currentRoomId = roomId;
+        socket.role = 'p1';
+
+        console.log(`[+] Sala creada: ${roomId} (${finalRoomName}) por ${finalAlias} (ID: ${socket.id})`);
+
+        if (typeof callback === 'function') {
+            callback({ success: true, roomId, role: 'p1', roomName: finalRoomName, gameData: newRoom.gameData, gameState: newRoom.gameState });
+        }
+
+        io.to(roomId).emit('updateData', newRoom.gameData);
+        io.to(roomId).emit('state', newRoom.gameState);
+        broadcastRoomsList();
+    });
+
+    // Unirse a una sala existente
+    socket.on('joinRoom', ({ roomId, alias }, callback) => {
+        leaveCurrentRoom(socket);
+
+        const targetId = (roomId || '').trim().toUpperCase();
+        const room = rooms.get(targetId);
+
+        if (!room) {
+            if (typeof callback === 'function') callback({ success: false, error: 'La sala especificada no existe o fue cerrada.' });
+            return;
+        }
+
+        let role = 'spectator';
+        const finalAlias = alias || 'Jugador';
+
+        if (!room.players.p1) {
+            room.players.p1 = socket.id;
+            role = 'p1';
+            room.gameData.names.p1 = finalAlias;
+            room.gameData.ready.p1 = true;
+        } else if (!room.players.p2) {
+            room.players.p2 = socket.id;
+            role = 'p2';
+            room.gameData.names.p2 = finalAlias;
+            room.gameData.ready.p2 = true;
+        } else {
+            role = 'spectator';
+            room.spectators.add(socket.id);
+        }
+
+        socket.join(targetId);
+        socket.currentRoomId = targetId;
+        socket.role = role;
+
+        console.log(`[+] Socket ${socket.id} se unió a ${targetId} como ${role}`);
+
+        if (typeof callback === 'function') {
+            callback({ success: true, roomId: targetId, role, roomName: room.name, gameData: room.gameData, gameState: room.gameState });
+        }
+
+        io.to(targetId).emit('updateData', room.gameData);
+        io.to(targetId).emit('state', room.gameState);
+
+        // Si ambos jugadores están listos y la sala está esperando, iniciar conteo
+        if (room.gameData.ready.p1 && room.gameData.ready.p2 && room.gameState.status === 'waiting') {
+            startRoomCountdown(room);
+        }
+
+        broadcastRoomsList();
+    });
+
+    // Salir de la sala actual
+    socket.on('leaveRoom', () => {
+        leaveCurrentRoom(socket);
+        socket.emit('leftRoom');
     });
 
     socket.on('move', (dir) => {
-        if (gameState.status !== 'playing') return;
-        let p = role === 'p1' ? gameState.p1 : (role === 'p2' ? gameState.p2 : null);
+        if (!socket.currentRoomId) return;
+        const room = rooms.get(socket.currentRoomId);
+        if (!room || room.gameState.status !== 'playing') return;
+
+        let p = socket.role === 'p1' ? room.gameState.p1 : (socket.role === 'p2' ? room.gameState.p2 : null);
         if (!p || !p.alive) return;
 
-        // Evitar giros de 180° inmediatos o múltiples giros por tick
         if (dir === 'up' && p.vy === 0 && p.nextVy === 0) { p.nextVx = 0; p.nextVy = -1; }
         if (dir === 'down' && p.vy === 0 && p.nextVy === 0) { p.nextVx = 0; p.nextVy = 1; }
         if (dir === 'left' && p.vx === 0 && p.nextVx === 0) { p.nextVx = -1; p.nextVy = 0; }
@@ -79,127 +186,165 @@ io.on('connection', (socket) => {
     });
 
     socket.on('reaction', (emoji) => {
+        if (!socket.currentRoomId) return;
         if (typeof emoji === 'string' && emoji.length <= 8) {
-            io.emit('reaction', { role, emoji });
+            io.to(socket.currentRoomId).emit('reaction', { role: socket.role, emoji });
         }
     });
 
     socket.on('disconnect', () => {
-        console.log(`[-] Jugador desconectado: ${role}`);
-        if (role === 'p1') { players.p1 = null; gameData.names.p1 = 'Esperando...'; gameData.ready.p1 = false; gameData.scores.p1 = 0; }
-        if (role === 'p2') { players.p2 = null; gameData.names.p2 = 'Esperando...'; gameData.ready.p2 = false; gameData.scores.p2 = 0; }
-
-        clearInterval(gameLoop);
-        clearInterval(countdownInterval);
-        gameState = resetGame();
-        io.emit('updateData', gameData);
-        io.emit('state', gameState);
+        leaveCurrentRoom(socket);
     });
 });
 
-function startCountdown() {
-    if (gameState.status === 'countdown' || gameState.status === 'playing') return;
+function leaveCurrentRoom(socket) {
+    const roomId = socket.currentRoomId;
+    if (!roomId) return;
 
-    console.log(`[!] Iniciando cuenta regresiva...`);
-    gameState.status = 'countdown';
-    gameState.countdownTime = 3;
-    io.emit('state', gameState);
+    const room = rooms.get(roomId);
+    socket.leave(roomId);
+    socket.currentRoomId = null;
 
-    clearInterval(countdownInterval);
-    countdownInterval = setInterval(() => {
-        gameState.countdownTime--;
-
-        if (gameState.countdownTime < 0) {
-            clearInterval(countdownInterval);
-            gameState.status = 'playing';
-            console.log(`[!] ¡Partida iniciada!`);
-            startGameLoop();
+    if (room) {
+        if (socket.role === 'p1') {
+            room.players.p1 = null;
+            room.gameData.names.p1 = 'Esperando...';
+            room.gameData.ready.p1 = false;
+        } else if (socket.role === 'p2') {
+            room.players.p2 = null;
+            room.gameData.names.p2 = 'Esperando...';
+            room.gameData.ready.p2 = false;
         } else {
-            io.emit('state', gameState);
+            room.spectators.delete(socket.id);
+        }
+
+        // Si se salió un jugador en duelo o cuenta regresiva, reiniciar el juego
+        if (socket.role === 'p1' || socket.role === 'p2') {
+            clearInterval(room.gameLoop);
+            clearInterval(room.countdownInterval);
+            room.gameState = createGameState();
+            io.to(roomId).emit('updateData', room.gameData);
+            io.to(roomId).emit('state', room.gameState);
+        }
+
+        // Si la sala queda completamente vacía (0 jugadores y 0 espectadores), destruirla
+        const remainingClients = (room.players.p1 ? 1 : 0) + (room.players.p2 ? 1 : 0) + room.spectators.size;
+        if (remainingClients === 0) {
+            clearInterval(room.gameLoop);
+            clearInterval(room.countdownInterval);
+            rooms.delete(roomId);
+            console.log(`[-] Sala ${roomId} eliminada por estar vacía.`);
+        }
+    }
+
+    socket.role = null;
+    broadcastRoomsList();
+}
+
+function startRoomCountdown(room) {
+    if (room.gameState.status === 'countdown' || room.gameState.status === 'playing') return;
+
+    console.log(`[!] Iniciando cuenta regresiva en sala ${room.id}...`);
+    room.gameState.status = 'countdown';
+    room.gameState.countdownTime = 3;
+    io.to(room.id).emit('state', room.gameState);
+
+    clearInterval(room.countdownInterval);
+    room.countdownInterval = setInterval(() => {
+        room.gameState.countdownTime--;
+
+        if (room.gameState.countdownTime < 0) {
+            clearInterval(room.countdownInterval);
+            room.gameState.status = 'playing';
+            console.log(`[!] ¡Partida iniciada en sala ${room.id}!`);
+            startRoomGameLoop(room);
+        } else {
+            io.to(room.id).emit('state', room.gameState);
         }
     }, 1000);
 }
 
-function startGameLoop() {
-    clearInterval(gameLoop);
-    gameLoop = setInterval(() => {
-        if (gameState.status !== 'playing') return;
+function startRoomGameLoop(room) {
+    clearInterval(room.gameLoop);
+    room.gameLoop = setInterval(() => {
+        if (room.gameState.status !== 'playing') return;
 
-        if (gameState.p1.alive) {
-            gameState.p1.vx = gameState.p1.nextVx;
-            gameState.p1.vy = gameState.p1.nextVy;
-            gameState.p1.trail.push({ x: gameState.p1.x, y: gameState.p1.y });
-            gameState.p1.x += gameState.p1.vx;
-            gameState.p1.y += gameState.p1.vy;
+        if (room.gameState.p1.alive) {
+            room.gameState.p1.vx = room.gameState.p1.nextVx;
+            room.gameState.p1.vy = room.gameState.p1.nextVy;
+            room.gameState.p1.trail.push({ x: room.gameState.p1.x, y: room.gameState.p1.y });
+            room.gameState.p1.x += room.gameState.p1.vx;
+            room.gameState.p1.y += room.gameState.p1.vy;
         }
-        if (gameState.p2.alive) {
-            gameState.p2.vx = gameState.p2.nextVx;
-            gameState.p2.vy = gameState.p2.nextVy;
-            gameState.p2.trail.push({ x: gameState.p2.x, y: gameState.p2.y });
-            gameState.p2.x += gameState.p2.vx;
-            gameState.p2.y += gameState.p2.vy;
+        if (room.gameState.p2.alive) {
+            room.gameState.p2.vx = room.gameState.p2.nextVx;
+            room.gameState.p2.vy = room.gameState.p2.nextVy;
+            room.gameState.p2.trail.push({ x: room.gameState.p2.x, y: room.gameState.p2.y });
+            room.gameState.p2.x += room.gameState.p2.vx;
+            room.gameState.p2.y += room.gameState.p2.vy;
         }
 
-        checkCollisions();
-        io.emit('state', gameState);
+        checkRoomCollisions(room);
+        io.to(room.id).emit('state', room.gameState);
 
-        // Validar quién ganó o si hubo empate
-        if (!gameState.p1.alive || !gameState.p2.alive) {
-            gameState.status = 'gameover';
-            clearInterval(gameLoop);
+        if (!room.gameState.p1.alive || !room.gameState.p2.alive) {
+            room.gameState.status = 'gameover';
+            clearInterval(room.gameLoop);
 
             let winner = 'Empate';
-            if (gameState.p1.alive && !gameState.p2.alive) { gameData.scores.p1++; winner = 'p1'; }
-            else if (!gameState.p1.alive && gameState.p2.alive) { gameData.scores.p2++; winner = 'p2'; }
+            if (room.gameState.p1.alive && !room.gameState.p2.alive) { room.gameData.scores.p1++; winner = 'p1'; }
+            else if (!room.gameState.p1.alive && room.gameState.p2.alive) { room.gameData.scores.p2++; winner = 'p2'; }
 
-            console.log(`[!] Fin de ronda. Ganador: ${winner}. Marcador: ${gameData.scores.p1} - ${gameData.scores.p2}`);
+            console.log(`[!] Fin de ronda en sala ${room.id}. Ganador: ${winner}. Marcador: ${room.gameData.scores.p1} - ${room.gameData.scores.p2}`);
 
-            io.emit('updateData', gameData);
-            io.emit('state', gameState);
+            io.to(room.id).emit('updateData', room.gameData);
+            io.to(room.id).emit('state', room.gameState);
 
-            // Reinicio automático
             setTimeout(() => {
-                gameState = resetGame();
-                startCountdown();
+                if (rooms.has(room.id)) {
+                    room.gameState = createGameState();
+                    startRoomCountdown(room);
+                }
             }, 3000);
         }
     }, 60);
 }
 
-function checkCollisions() {
+function checkRoomCollisions(room) {
     const trailSet = new Set();
+    const gs = room.gameState;
 
-    if (gameState.p1 && gameState.p1.trail) {
-        for (let i = 0; i < gameState.p1.trail.length; i++) {
-            const t = gameState.p1.trail[i];
+    if (gs.p1 && gs.p1.trail) {
+        for (let i = 0; i < gs.p1.trail.length; i++) {
+            const t = gs.p1.trail[i];
             trailSet.add(`${t.x},${t.y}`);
         }
     }
-    if (gameState.p2 && gameState.p2.trail) {
-        for (let i = 0; i < gameState.p2.trail.length; i++) {
-            const t = gameState.p2.trail[i];
+    if (gs.p2 && gs.p2.trail) {
+        for (let i = 0; i < gs.p2.trail.length; i++) {
+            const t = gs.p2.trail[i];
             trailSet.add(`${t.x},${t.y}`);
         }
     }
 
-    const p1Hit = trailSet.has(`${gameState.p1.x},${gameState.p1.y}`);
-    const p2Hit = trailSet.has(`${gameState.p2.x},${gameState.p2.y}`);
+    const p1Hit = trailSet.has(`${gs.p1.x},${gs.p1.y}`);
+    const p2Hit = trailSet.has(`${gs.p2.x},${gs.p2.y}`);
 
-    if (gameState.p1.x < 0 || gameState.p1.x >= width || gameState.p1.y < 0 || gameState.p1.y >= height || p1Hit) {
-        gameState.p1.alive = false;
+    if (gs.p1.x < 0 || gs.p1.x >= width || gs.p1.y < 0 || gs.p1.y >= height || p1Hit) {
+        gs.p1.alive = false;
     }
-    if (gameState.p2.x < 0 || gameState.p2.x >= width || gameState.p2.y < 0 || gameState.p2.y >= height || p2Hit) {
-        gameState.p2.alive = false;
+    if (gs.p2.x < 0 || gs.p2.x >= width || gs.p2.y < 0 || gs.p2.y >= height || p2Hit) {
+        gs.p2.alive = false;
     }
 
-    if (gameState.p1.x === gameState.p2.x && gameState.p1.y === gameState.p2.y) {
-        gameState.p1.alive = false;
-        gameState.p2.alive = false;
+    if (gs.p1.x === gs.p2.x && gs.p1.y === gs.p2.y) {
+        gs.p1.alive = false;
+        gs.p2.alive = false;
     }
 }
 
 server.listen(3000, '0.0.0.0', () => {
     console.log('==============================================');
-    console.log('🚀 SERVIDOR MULTIJUGADOR INICIADO CORRECTAMENTE');
+    console.log('🚀 SERVIDOR MULTI-SALA INICIADO CORRECTAMENTE');
     console.log('==============================================');
 });
