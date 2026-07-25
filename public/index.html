@@ -69,31 +69,48 @@
     <!-- Pantalla de Juego de la Sala -->
     <div id="gameContainer">
         <div id="topBar">
-            <div class="hud-row-top">
-                <div class="room-header-tag">
-                    <span>SALA:</span>
+            <!-- Fila 1: Info y Salida -->
+            <div class="hud-row-info">
+                <div class="hud-left-info">
                     <span id="currentRoomCode" class="room-code-badge clickable-badge" title="Haz clic para copiar el código 📋">NEON-----</span>
-                    <span id="currentRoomName" style="color: #94a3b8; font-weight: 400; font-size: 12px;">(--)</span>
+                    <span id="currentRoomName" class="room-name-header">(--)</span>
                 </div>
-                <div id="winsLimitTag" class="wins-limit-tag">🏆 <span id="winsLimitVal">3</span> victorias</div>
-                <div class="hud-actions">
-                    <button id="copyCodeBtn" class="cyber-btn cyber-btn-secondary" style="padding: 6px 12px; font-size: 11px;">CÓDIGO 📋</button>
-                    <button id="copyLinkBtn" class="cyber-btn cyber-btn-secondary" style="padding: 6px 12px; font-size: 11px;">ENLACE 🔗</button>
-                    <button id="leaveRoomBtn" class="cyber-btn cyber-btn-danger" style="padding: 6px 12px; font-size: 11px;">SALIR 🚪</button>
+                <div class="hud-right-info">
+                    <div id="winsLimitTag" class="wins-limit-tag">🏆 <span id="winsLimitVal">3</span> victorias</div>
+                    <button id="leaveRoomBtn" class="leave-icon-btn" title="Salir de la sala">🚪</button>
                 </div>
             </div>
 
+            <!-- Fila 2: Acciones Compartir -->
+            <div class="hud-row-share">
+                <button id="copyCodeBtn" class="share-btn">
+                    <span class="btn-icon">📋</span> <span class="btn-text">Copiar Código</span>
+                </button>
+                <button id="copyLinkBtn" class="share-btn">
+                    <span class="btn-icon">🔗</span> <span class="btn-text">Copiar Enlace</span>
+                </button>
+            </div>
+
+            <!-- Fila 3: Marcador y Vidas -->
             <div class="hud-row-scores">
                 <div class="score-box score-p1">
-                    <div class="player-lives" id="livesP1">❤️❤️❤️</div>
-                    <span id="nameP1">P1</span>
+                    <div class="player-info-container">
+                        <div class="player-lives" id="livesP1">❤️❤️❤️</div>
+                        <span id="nameP1" class="player-name">P1</span>
+                    </div>
                     <span class="score-num" id="scoreP1">0</span>
                 </div>
-                <div id="pingDisplay">PING: <span id="pingVal">--</span>ms</div>
+                
+                <div id="pingDisplay" class="ping-chip">
+                    <span class="ping-dot"></span> PING: <span id="pingVal">--</span>ms
+                </div>
+                
                 <div class="score-box score-p2">
                     <span class="score-num" id="scoreP2">0</span>
-                    <span id="nameP2">P2</span>
-                    <div class="player-lives" id="livesP2">❤️❤️❤️</div>
+                    <div class="player-info-container">
+                        <div class="player-lives" id="livesP2">❤️❤️❤️</div>
+                        <span id="nameP2" class="player-name">P2</span>
+                    </div>
                 </div>
             </div>
         </div>

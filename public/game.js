@@ -559,10 +559,14 @@ socket.on('matchWin', (data) => {
 });
 
 // Revancha iniciada por el servidor (el otro jugador solicitó revancha)
-socket.on('rematchStarted', () => {
+socket.on('rematchStarted', (data) => {
     matchOverlay.classList.add('hidden');
     renderLives(livesP1El, 3);
     renderLives(livesP2El, 3);
+    if (data && data.config) {
+        currentConfig = data.config;
+        winsLimitValEl.innerText = data.config.winsLimit;
+    }
 });
 
 // Bruja recolectada: partículas moradas y texto flotante

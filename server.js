@@ -95,7 +95,7 @@ function spawnWitch(room) {
 
     io.to(room.id).emit('state', room.gameState);
 
-    // La bruja desaparece sola en 10 segundos si nadie la recoge
+    // La bruja desaparece sola en 4 segundos si nadie la recoge
     const disappearTimeout = setTimeout(() => {
         if (!rooms.has(room.id)) return;
         const idx = room.gameState.powerUps.findIndex(p => p.id === id);
@@ -105,7 +105,7 @@ function spawnWitch(room) {
         }
         // Programar siguiente bruja
         schedulePowerUp(room);
-    }, 10000);
+    }, 4000);
 
     room.witchDisappearTimeout = disappearTimeout;
 }
@@ -115,7 +115,7 @@ function schedulePowerUp(room) {
     clearTimeout(room.witchDisappearTimeout);
     room.witchSpawnTimeout = setTimeout(() => {
         spawnWitch(room);
-    }, 15000);
+    }, 8000);
 }
 
 function checkPowerUpCollection(room) {
@@ -298,7 +298,7 @@ io.on('connection', (socket) => {
 
         io.to(room.id).emit('updateData', room.gameData);
         io.to(room.id).emit('state', room.gameState);
-        io.to(room.id).emit('rematchStarted');
+        io.to(room.id).emit('rematchStarted', { config: room.config });
         startRoomCountdown(room);
     });
 
