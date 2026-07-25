@@ -78,6 +78,12 @@ io.on('connection', (socket) => {
         if (dir === 'right' && p.vx === 0 && p.nextVx === 0) { p.nextVx = 1; p.nextVy = 0; }
     });
 
+    socket.on('reaction', (emoji) => {
+        if (typeof emoji === 'string' && emoji.length <= 8) {
+            io.emit('reaction', { role, emoji });
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log(`[-] Jugador desconectado: ${role}`);
         if (role === 'p1') { players.p1 = null; gameData.names.p1 = 'Esperando...'; gameData.ready.p1 = false; gameData.scores.p1 = 0; }

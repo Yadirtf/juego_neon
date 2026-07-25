@@ -210,8 +210,45 @@
             background: #090d18;
         }
 
+        /* Barra de Reacciones Rápidas */
+        #reactionBar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 255, 255, 0.15);
+            border-radius: 12px;
+        }
+
+        .btn-emoji {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            font-size: 20px;
+            border-radius: 8px;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .btn-emoji:hover {
+            background: rgba(0, 255, 255, 0.2);
+            border-color: #00ffff;
+            transform: scale(1.15);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+        }
+
+        .btn-emoji:active {
+            transform: scale(0.95);
+        }
+
         #msg {
-            margin-top: 12px;
+            margin-top: 10px;
             font-family: 'Orbitron', sans-serif;
             font-size: 16px;
             font-weight: 700;
@@ -296,6 +333,16 @@
             <canvas id="gameCanvas" width="600" height="600"></canvas>
         </div>
 
+        <!-- Barra de Reacciones Rápidas (Caritas) -->
+        <div id="reactionBar">
+            <button class="btn-emoji" data-emoji="🔥" title="Presiona 1">🔥</button>
+            <button class="btn-emoji" data-emoji="😎" title="Presiona 2">😎</button>
+            <button class="btn-emoji" data-emoji="💀" title="Presiona 3">💀</button>
+            <button class="btn-emoji" data-emoji="⚡" title="Presiona 4">⚡</button>
+            <button class="btn-emoji" data-emoji="👑" title="Presiona 5">👑</button>
+            <button class="btn-emoji" data-emoji="😂" title="Presiona 6">😂</button>
+        </div>
+
         <div id="msg">ESPERANDO AL RIVAL...</div>
 
         <!-- Controles D-Pad para Pantallas Táctiles -->
@@ -317,6 +364,7 @@
 
         let latestState = null;
         let particles = [];
+        let floatingReactions = [];
         let previousStatus = 'waiting';
         let previousCountdown = -1;
 
@@ -393,6 +441,22 @@
                     noise.stop(this.ctx.currentTime + 0.4);
                 } catch (e) {}
             }
+            playReactionSound() {
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1046.50, this.ctx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.15);
+                } catch (e) {}
+            }
         }
         const audio = new SoundEngine();
 
@@ -459,6 +523,46 @@
 
             previousStatus = state.status;
             latestState = state;
+        });
+
+        // --- RECEPCIÓN DE REACCIONES RÁPIDAS ---
+        socket.on('reaction', ({ role, emoji }) => {
+            audio.playReactionSound();
+
+            let rx = canvas.width / 2;
+            let ry = canvas.height / 2;
+
+            if (latestState) {
+                if (role === 'p1' && latestState.p1) {
+                    rx = latestState.p1.x * gridSize + gridSize / 2;
+                    ry = latestState.p1.y * gridSize - 15;
+                } else if (role === 'p2' && latestState.p2) {
+                    rx = latestState.p2.x * gridSize + gridSize / 2;
+                    ry = latestState.p2.y * gridSize - 15;
+                }
+            }
+
+            floatingReactions.push({
+                x: Math.max(30, Math.min(canvas.width - 30, rx)),
+                y: Math.max(30, Math.min(canvas.height - 30, ry)),
+                emoji: emoji,
+                alpha: 1,
+                scale: 0.3,
+                vy: -1.2,
+                color: role === 'p1' ? '#00ffff' : (role === 'p2' ? '#ff00ff' : '#ffffff')
+            });
+        });
+
+        function sendReaction(emoji) {
+            audio.init();
+            socket.emit('reaction', emoji);
+        }
+
+        document.querySelectorAll('.btn-emoji').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const emoji = btn.getAttribute('data-emoji');
+                sendReaction(emoji);
+            });
         });
 
         // --- SISTEMA DE PARTÍCULAS NEÓN ---
@@ -593,6 +697,40 @@
                 ctx.restore();
             }
 
+            // RENDERIZADO DE REACCIONES FLOTANTES (EMOJIS)
+            for (let i = floatingReactions.length - 1; i >= 0; i--) {
+                const r = floatingReactions[i];
+                r.y += r.vy;
+                r.alpha -= 0.012;
+                if (r.scale < 1) r.scale += 0.05;
+
+                if (r.alpha <= 0) {
+                    floatingReactions.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = r.alpha;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // Globito contenedor de la carita
+                ctx.fillStyle = 'rgba(6, 9, 19, 0.85)';
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = r.color;
+                ctx.beginPath();
+                ctx.arc(r.x, r.y, 22 * r.scale, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = r.color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.font = `${Math.floor(22 * r.scale)}px sans-serif`;
+                ctx.fillText(r.emoji, r.x, r.y);
+                ctx.restore();
+            }
+
             // OVERLAY DE CUENTA REGRESIVA
             if (latestState.status === 'countdown') {
                 ctx.fillStyle = 'rgba(6, 9, 19, 0.75)';
@@ -630,6 +768,12 @@
             if (key === 's' || key === 'arrowdown') sendMove('down');
             if (key === 'a' || key === 'arrowleft') sendMove('left');
             if (key === 'd' || key === 'arrowright') sendMove('right');
+
+            // Teclas numéricas 1 a 6 para caritas/reacciones
+            if (!isNaN(key) && parseInt(key) >= 1 && parseInt(key) <= 6) {
+                const emojis = ['🔥', '😎', '💀', '⚡', '👑', '😂'];
+                sendReaction(emojis[parseInt(key) - 1]);
+            }
         });
 
         // Controles Táctiles (Botones D-Pad)
