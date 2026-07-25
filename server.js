@@ -180,7 +180,7 @@ io.on('connection', (socket) => {
                 names: { p1: finalAlias, p2: 'Esperando...' },
                 ready: { p1: true, p2: false },
                 scores: { p1: 0, p2: 0 },
-                lives: { p1: 3, p2: 3 }
+                lives: { p1: finalWinsLimit, p2: finalWinsLimit }
             },
             gameState: createGameState(),
             gameLoop: null,
@@ -308,9 +308,9 @@ io.on('connection', (socket) => {
         if (!room || room.gameState.status !== 'matchover') return;
         if (socket.role !== 'p1' && socket.role !== 'p2') return;
 
-        // Reiniciar partida completa
+        // Reiniciar partida completa con vidas iniciales según winsLimit
         room.gameData.scores = { p1: 0, p2: 0 };
-        room.gameData.lives = { p1: 3, p2: 3 };
+        room.gameData.lives = { p1: room.config.winsLimit, p2: room.config.winsLimit };
         room.gameState = createGameState();
 
         io.to(room.id).emit('updateData', room.gameData);

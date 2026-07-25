@@ -470,13 +470,11 @@ socket.on('updateData', (data) => {
 function renderLives(el, count) {
     if (!el) return;
     const full = '❤️';
-    const empty = '🖤';
     const maxLives = Math.max(count, 0);
     let html = '';
-    // mostramos hasta 5 corazones para no desbordar el HUD
-    const display = Math.min(maxLives, 7);
+    const display = Math.min(maxLives, 5);
     for (let i = 0; i < display; i++) html += full;
-    if (maxLives > 7) html += `+${maxLives - 7}`;
+    if (maxLives > 5) html += `<span style="font-size:11px;font-weight:700;color:#ff5555;">+${maxLives - 5}</span>`;
     if (maxLives === 0) html = '💀';
     el.innerHTML = html;
 }
@@ -565,12 +563,13 @@ socket.on('matchWin', (data) => {
 // Revancha iniciada por el servidor (el otro jugador solicitó revancha)
 socket.on('rematchStarted', (data) => {
     matchOverlay.classList.add('hidden');
-    renderLives(livesP1El, 3);
-    renderLives(livesP2El, 3);
     if (data && data.config) {
         currentConfig = data.config;
         winsLimitValEl.innerText = data.config.winsLimit;
     }
+    const initialLives = currentConfig ? currentConfig.winsLimit : 3;
+    renderLives(livesP1El, initialLives);
+    renderLives(livesP2El, initialLives);
 });
 
 // Bruja recolectada: partículas moradas y texto flotante
