@@ -26,8 +26,8 @@ function generateRoomId() {
 
 function createGameState() {
     return {
-        p1: { x: 10, y: Math.floor(height / 2), vx: 1, vy: 0, nextVx: 1, nextVy: 0, trail: [], alive: true, color: '#00ffff' },
-        p2: { x: width - 10, y: Math.floor(height / 2), vx: -1, vy: 0, nextVx: -1, nextVy: 0, trail: [], alive: true, color: '#ff00ff' },
+        p1: { x: 10, y: Math.floor(height / 2), vx: 1, vy: 0, moveQueue: [], trail: [], alive: true, color: '#00ffff' },
+        p2: { x: width - 10, y: Math.floor(height / 2), vx: -1, vy: 0, moveQueue: [], trail: [], alive: true, color: '#ff00ff' },
         status: 'waiting',
         countdownTime: 3,
         powerUps: []
@@ -272,10 +272,27 @@ io.on('connection', (socket) => {
         let p = socket.role === 'p1' ? room.gameState.p1 : (socket.role === 'p2' ? room.gameState.p2 : null);
         if (!p || !p.alive) return;
 
-        if (dir === 'up' && p.vy === 0 && p.nextVy === 0) { p.nextVx = 0; p.nextVy = -1; }
-        if (dir === 'down' && p.vy === 0 && p.nextVy === 0) { p.nextVx = 0; p.nextVy = 1; }
-        if (dir === 'left' && p.vx === 0 && p.nextVx === 0) { p.nextVx = -1; p.nextVy = 0; }
-        if (dir === 'right' && p.vx === 0 && p.nextVx === 0) { p.nextVx = 1; p.nextVy = 0; }
+        let targetVx = 0, targetVy = 0;
+        if (dir === 'up') { targetVx = 0; targetVy = -1; }
+        else if (dir === 'down') { targetVx = 0; targetVy = 1; }
+        else if (dir === 'left') { targetVx = -1; targetVy = 0; }
+        else if (dir === 'right') { targetVx = 1; targetVy = 0; }
+        else return;
+
+        if (!p.moveQueue) p.moveQueue = [];
+
+        // Determinar la última dirección intencionada (en cola o actual)
+        const lastMove = p.moveQueue.length > 0 
+            ? p.moveQueue[p.moveQueue.length - 1] 
+            : { vx: p.vx, vy: p.vy };
+
+        // Prevenir giro de 180° contra sí mismo y comandos redundantes duplicados
+        const isOpposite = (targetVx === -lastMove.vx && targetVy === -lastMove.vy);
+        const isSame = (targetVx === lastMove.vx && targetVy === lastMove.vy);
+
+        if (!isOpposite && !isSame && p.moveQueue.length < 2) {
+            p.moveQueue.push({ vx: targetVx, vy: targetVy });
+        }
     });
 
     socket.on('reaction', (emoji) => {
@@ -391,15 +408,21 @@ function startRoomGameLoop(room) {
         if (room.gameState.status !== 'playing') return;
 
         if (room.gameState.p1.alive) {
-            room.gameState.p1.vx = room.gameState.p1.nextVx;
-            room.gameState.p1.vy = room.gameState.p1.nextVy;
+            if (room.gameState.p1.moveQueue && room.gameState.p1.moveQueue.length > 0) {
+                const nextMove = room.gameState.p1.moveQueue.shift();
+                room.gameState.p1.vx = nextMove.vx;
+                room.gameState.p1.vy = nextMove.vy;
+            }
             room.gameState.p1.trail.push({ x: room.gameState.p1.x, y: room.gameState.p1.y });
             room.gameState.p1.x = (room.gameState.p1.x + room.gameState.p1.vx + width) % width;
             room.gameState.p1.y = (room.gameState.p1.y + room.gameState.p1.vy + height) % height;
         }
         if (room.gameState.p2.alive) {
-            room.gameState.p2.vx = room.gameState.p2.nextVx;
-            room.gameState.p2.vy = room.gameState.p2.nextVy;
+            if (room.gameState.p2.moveQueue && room.gameState.p2.moveQueue.length > 0) {
+                const nextMove = room.gameState.p2.moveQueue.shift();
+                room.gameState.p2.vx = nextMove.vx;
+                room.gameState.p2.vy = nextMove.vy;
+            }
             room.gameState.p2.trail.push({ x: room.gameState.p2.x, y: room.gameState.p2.y });
             room.gameState.p2.x = (room.gameState.p2.x + room.gameState.p2.vx + width) % width;
             room.gameState.p2.y = (room.gameState.p2.y + room.gameState.p2.vy + height) % height;
@@ -485,7 +508,7 @@ function startRoomGameLoop(room) {
                 }, 3000);
             }
         }
-    }, 60);
+    }, 48);
 }
 
 function checkRoomCollisions(room) {

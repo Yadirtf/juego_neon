@@ -920,11 +920,21 @@ function renderLoop() {
 
 requestAnimationFrame(renderLoop);
 
-// --- CONTROL DE TECLADO ---
+// --- CONTROL DE TECLADO Y MOVIMIENTO ---
+let lastSentDir = '';
+
 function sendMove(dir) {
-    if (!currentRoomId) return;
+    if (!currentRoomId || !latestState || latestState.status !== 'playing') return;
+    if (lastSentDir === dir) return;
+
+    lastSentDir = dir;
     audio.playTurn();
     socket.emit('move', dir);
+
+    // Resetear lastSentDir después de un corto tiempo para permitir volver a la misma dirección si la trayectoria cambió
+    setTimeout(() => {
+        if (lastSentDir === dir) lastSentDir = '';
+    }, 100);
 }
 
 document.addEventListener('keydown', e => {
