@@ -29,7 +29,8 @@ function createGameState() {
         p1: { x: 10, y: Math.floor(height / 2), vx: 1, vy: 0, nextVx: 1, nextVy: 0, trail: [], alive: true, color: '#00ffff' },
         p2: { x: width - 10, y: Math.floor(height / 2), vx: -1, vy: 0, nextVx: -1, nextVy: 0, trail: [], alive: true, color: '#ff00ff' },
         status: 'waiting',
-        countdownTime: 3
+        countdownTime: 3,
+        powerUps: []
     };
 }
 
@@ -46,7 +47,8 @@ function getRoomsList() {
             p2Name: room.gameData.names.p2,
             playerCount: playerCount,
             spectatorCount: spectatorCount,
-            status: room.gameState.status
+            status: room.gameState.status,
+            winsLimit: room.config.winsLimit
         });
     }
     return list;
@@ -54,6 +56,90 @@ function getRoomsList() {
 
 function broadcastRoomsList() {
     io.emit('roomsList', getRoomsList());
+}
+
+// --- Power-Up: Bruja ---
+let powerUpIdCounter = 0;
+
+function getRandomEmptyPosition(room) {
+    const gs = room.gameState;
+    const occupied = new Set();
+
+    for (const t of gs.p1.trail) occupied.add(`${t.x},${t.y}`);
+    for (const t of gs.p2.trail) occupied.add(`${t.x},${t.y}`);
+    occupied.add(`${gs.p1.x},${gs.p1.y}`);
+    occupied.add(`${gs.p2.x},${gs.p2.y}`);
+    for (const pu of gs.powerUps) occupied.add(`${pu.x},${pu.y}`);
+
+    let tries = 0;
+    while (tries < 200) {
+        const x = Math.floor(Math.random() * (width - 4)) + 2;
+        const y = Math.floor(Math.random() * (height - 4)) + 2;
+        if (!occupied.has(`${x},${y}`)) {
+            return { x, y };
+        }
+        tries++;
+    }
+    return null;
+}
+
+function spawnWitch(room) {
+    if (room.gameState.status !== 'playing') return;
+
+    const pos = getRandomEmptyPosition(room);
+    if (!pos) return;
+
+    const id = ++powerUpIdCounter;
+    const witch = { id, x: pos.x, y: pos.y, type: 'witch' };
+    room.gameState.powerUps.push(witch);
+
+    io.to(room.id).emit('state', room.gameState);
+
+    // La bruja desaparece sola en 10 segundos si nadie la recoge
+    const disappearTimeout = setTimeout(() => {
+        if (!rooms.has(room.id)) return;
+        const idx = room.gameState.powerUps.findIndex(p => p.id === id);
+        if (idx !== -1) {
+            room.gameState.powerUps.splice(idx, 1);
+            io.to(room.id).emit('state', room.gameState);
+        }
+        // Programar siguiente bruja
+        schedulePowerUp(room);
+    }, 10000);
+
+    room.witchDisappearTimeout = disappearTimeout;
+}
+
+function schedulePowerUp(room) {
+    clearTimeout(room.witchSpawnTimeout);
+    clearTimeout(room.witchDisappearTimeout);
+    room.witchSpawnTimeout = setTimeout(() => {
+        spawnWitch(room);
+    }, 15000);
+}
+
+function checkPowerUpCollection(room) {
+    const gs = room.gameState;
+    if (gs.powerUps.length === 0) return;
+
+    for (let i = gs.powerUps.length - 1; i >= 0; i--) {
+        const pu = gs.powerUps[i];
+        let collected = null;
+
+        if (gs.p1.alive && gs.p1.x === pu.x && gs.p1.y === pu.y) collected = 'p1';
+        else if (gs.p2.alive && gs.p2.x === pu.x && gs.p2.y === pu.y) collected = 'p2';
+
+        if (collected) {
+            gs.powerUps.splice(i, 1);
+            room.gameData.lives[collected]++;
+            io.to(room.id).emit('witchCollected', { by: collected, lives: room.gameData.lives });
+            io.to(room.id).emit('updateData', room.gameData);
+
+            // Cancelar el timeout de desaparición y programar la siguiente
+            clearTimeout(room.witchDisappearTimeout);
+            schedulePowerUp(room);
+        }
+    }
 }
 
 io.on('connection', (socket) => {
@@ -72,7 +158,7 @@ io.on('connection', (socket) => {
     });
 
     // Crear una nueva sala
-    socket.on('createRoom', ({ roomName, alias }, callback) => {
+    socket.on('createRoom', ({ roomName, alias, winsLimit }, callback) => {
         leaveCurrentRoom(socket);
 
         let roomId = generateRoomId();
@@ -82,20 +168,25 @@ io.on('connection', (socket) => {
 
         const finalAlias = alias || 'Cyan';
         const finalRoomName = roomName || `Sala de ${finalAlias}`;
+        const finalWinsLimit = Math.max(1, Math.min(20, parseInt(winsLimit) || 3));
 
         const newRoom = {
             id: roomId,
             name: finalRoomName,
             players: { p1: socket.id, p2: null },
             spectators: new Set(),
+            config: { winsLimit: finalWinsLimit },
             gameData: {
                 names: { p1: finalAlias, p2: 'Esperando...' },
                 ready: { p1: true, p2: false },
-                scores: { p1: 0, p2: 0 }
+                scores: { p1: 0, p2: 0 },
+                lives: { p1: 3, p2: 3 }
             },
             gameState: createGameState(),
             gameLoop: null,
-            countdownInterval: null
+            countdownInterval: null,
+            witchSpawnTimeout: null,
+            witchDisappearTimeout: null
         };
 
         rooms.set(roomId, newRoom);
@@ -103,13 +194,14 @@ io.on('connection', (socket) => {
         socket.currentRoomId = roomId;
         socket.role = 'p1';
 
-        console.log(`[+] Sala creada: ${roomId} (${finalRoomName}) por ${finalAlias} (ID: ${socket.id})`);
+        console.log(`[+] Sala creada: ${roomId} (${finalRoomName}) WinsLimit: ${finalWinsLimit} por ${finalAlias} (ID: ${socket.id})`);
 
         if (typeof callback === 'function') {
-            callback({ success: true, roomId, role: 'p1', roomName: finalRoomName, gameData: newRoom.gameData, gameState: newRoom.gameState });
+            callback({ success: true, roomId, role: 'p1', roomName: finalRoomName, gameData: newRoom.gameData, gameState: newRoom.gameState, config: newRoom.config });
         }
 
         io.to(roomId).emit('updateData', newRoom.gameData);
+        io.to(roomId).emit('roomConfig', newRoom.config);
         io.to(roomId).emit('state', newRoom.gameState);
         broadcastRoomsList();
     });
@@ -151,10 +243,11 @@ io.on('connection', (socket) => {
         console.log(`[+] Socket ${socket.id} se unió a ${targetId} como ${role}`);
 
         if (typeof callback === 'function') {
-            callback({ success: true, roomId: targetId, role, roomName: room.name, gameData: room.gameData, gameState: room.gameState });
+            callback({ success: true, roomId: targetId, role, roomName: room.name, gameData: room.gameData, gameState: room.gameState, config: room.config });
         }
 
         io.to(targetId).emit('updateData', room.gameData);
+        io.to(targetId).emit('roomConfig', room.config);
         io.to(targetId).emit('state', room.gameState);
 
         // Si ambos jugadores están listos y la sala está esperando, iniciar conteo
@@ -192,6 +285,23 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('rematch', () => {
+        if (!socket.currentRoomId) return;
+        const room = rooms.get(socket.currentRoomId);
+        if (!room || room.gameState.status !== 'matchover') return;
+        if (socket.role !== 'p1' && socket.role !== 'p2') return;
+
+        // Reiniciar partida completa
+        room.gameData.scores = { p1: 0, p2: 0 };
+        room.gameData.lives = { p1: 3, p2: 3 };
+        room.gameState = createGameState();
+
+        io.to(room.id).emit('updateData', room.gameData);
+        io.to(room.id).emit('state', room.gameState);
+        io.to(room.id).emit('rematchStarted');
+        startRoomCountdown(room);
+    });
+
     socket.on('disconnect', () => {
         leaveCurrentRoom(socket);
     });
@@ -222,6 +332,8 @@ function leaveCurrentRoom(socket) {
         if (socket.role === 'p1' || socket.role === 'p2') {
             clearInterval(room.gameLoop);
             clearInterval(room.countdownInterval);
+            clearTimeout(room.witchSpawnTimeout);
+            clearTimeout(room.witchDisappearTimeout);
             room.gameState = createGameState();
             io.to(roomId).emit('updateData', room.gameData);
             io.to(roomId).emit('state', room.gameState);
@@ -232,6 +344,8 @@ function leaveCurrentRoom(socket) {
         if (remainingClients === 0) {
             clearInterval(room.gameLoop);
             clearInterval(room.countdownInterval);
+            clearTimeout(room.witchSpawnTimeout);
+            clearTimeout(room.witchDisappearTimeout);
             rooms.delete(roomId);
             console.log(`[-] Sala ${roomId} eliminada por estar vacía.`);
         }
@@ -243,6 +357,11 @@ function leaveCurrentRoom(socket) {
 
 function startRoomCountdown(room) {
     if (room.gameState.status === 'countdown' || room.gameState.status === 'playing') return;
+
+    // Limpiar brujas de rondas anteriores
+    clearTimeout(room.witchSpawnTimeout);
+    clearTimeout(room.witchDisappearTimeout);
+    room.gameState.powerUps = [];
 
     console.log(`[!] Iniciando cuenta regresiva en sala ${room.id}...`);
     room.gameState.status = 'countdown';
@@ -258,6 +377,8 @@ function startRoomCountdown(room) {
             room.gameState.status = 'playing';
             console.log(`[!] ¡Partida iniciada en sala ${room.id}!`);
             startRoomGameLoop(room);
+            // Programar primera bruja
+            schedulePowerUp(room);
         } else {
             io.to(room.id).emit('state', room.gameState);
         }
@@ -284,28 +405,85 @@ function startRoomGameLoop(room) {
             room.gameState.p2.y = (room.gameState.p2.y + room.gameState.p2.vy + height) % height;
         }
 
+        checkPowerUpCollection(room);
         checkRoomCollisions(room);
         io.to(room.id).emit('state', room.gameState);
 
         if (!room.gameState.p1.alive || !room.gameState.p2.alive) {
             room.gameState.status = 'gameover';
             clearInterval(room.gameLoop);
+            clearTimeout(room.witchSpawnTimeout);
+            clearTimeout(room.witchDisappearTimeout);
 
-            let winner = 'Empate';
-            if (room.gameState.p1.alive && !room.gameState.p2.alive) { room.gameData.scores.p1++; winner = 'p1'; }
-            else if (!room.gameState.p1.alive && room.gameState.p2.alive) { room.gameData.scores.p2++; winner = 'p2'; }
+            // --- Lógica de Vidas y Victorias ---
+            let roundWinner = null;
+            if (room.gameState.p1.alive && !room.gameState.p2.alive) {
+                room.gameData.scores.p1++;
+                room.gameData.lives.p2 = Math.max(0, room.gameData.lives.p2 - 1);
+                roundWinner = 'p1';
+            } else if (!room.gameState.p1.alive && room.gameState.p2.alive) {
+                room.gameData.scores.p2++;
+                room.gameData.lives.p1 = Math.max(0, room.gameData.lives.p1 - 1);
+                roundWinner = 'p2';
+            } else {
+                // Empate - ambos pierden una vida
+                room.gameData.lives.p1 = Math.max(0, room.gameData.lives.p1 - 1);
+                room.gameData.lives.p2 = Math.max(0, room.gameData.lives.p2 - 1);
+                roundWinner = 'draw';
+            }
 
-            console.log(`[!] Fin de ronda en sala ${room.id}. Ganador: ${winner}. Marcador: ${room.gameData.scores.p1} - ${room.gameData.scores.p2}`);
+            console.log(`[!] Fin de ronda en sala ${room.id}. Ganador ronda: ${roundWinner}. Vidas: ${room.gameData.lives.p1}-${room.gameData.lives.p2}. Marcador: ${room.gameData.scores.p1}-${room.gameData.scores.p2}`);
 
             io.to(room.id).emit('updateData', room.gameData);
             io.to(room.id).emit('state', room.gameState);
 
-            setTimeout(() => {
-                if (rooms.has(room.id)) {
-                    room.gameState = createGameState();
-                    startRoomCountdown(room);
-                }
-            }, 3000);
+            // --- Verificar si la partida terminó ---
+            const wl = room.config.winsLimit;
+            const p1MatchWin = room.gameData.scores.p1 >= wl;
+            const p2MatchWin = room.gameData.scores.p2 >= wl;
+            const p1NoLives = room.gameData.lives.p1 <= 0;
+            const p2NoLives = room.gameData.lives.p2 <= 0;
+
+            if (p1MatchWin || p2MatchWin || p1NoLives || p2NoLives) {
+                // Partida terminada
+                let matchWinner = 'draw';
+                let reason = 'winsLimit';
+                if (p1MatchWin && !p2MatchWin) matchWinner = 'p1';
+                else if (p2MatchWin && !p1MatchWin) matchWinner = 'p2';
+                else if (p2NoLives && !p1NoLives) { matchWinner = 'p1'; reason = 'lives'; }
+                else if (p1NoLives && !p2NoLives) { matchWinner = 'p2'; reason = 'lives'; }
+
+                room.gameState.status = 'matchover';
+
+                const winnerName = matchWinner === 'p1' ? room.gameData.names.p1
+                    : (matchWinner === 'p2' ? room.gameData.names.p2 : 'EMPATE');
+
+                console.log(`[🏆] PARTIDA TERMINADA en sala ${room.id}. Campeón: ${winnerName}`);
+
+                setTimeout(() => {
+                    if (rooms.has(room.id)) {
+                        io.to(room.id).emit('matchWin', {
+                            winner: matchWinner,
+                            winnerName,
+                            reason,
+                            scores: room.gameData.scores,
+                            lives: room.gameData.lives,
+                            winsLimit: wl
+                        });
+                        io.to(room.id).emit('state', room.gameState);
+                    }
+                }, 1800);
+
+            } else {
+                // Continuar con siguiente ronda
+                setTimeout(() => {
+                    if (rooms.has(room.id)) {
+                        room.gameState = createGameState();
+                        // Preservar power-ups vacíos para nueva ronda
+                        startRoomCountdown(room);
+                    }
+                }, 3000);
+            }
         }
     }, 60);
 }

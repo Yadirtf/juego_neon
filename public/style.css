@@ -498,3 +498,258 @@ canvas {
 #toast.show {
     transform: translateX(-50%) translateY(0);
 }
+
+/* ======================================================
+   VIDAS (Corazones en HUD)
+====================================================== */
+.player-lives {
+    font-size: 14px;
+    letter-spacing: 1px;
+    line-height: 1;
+    filter: drop-shadow(0 0 4px rgba(255, 80, 80, 0.8));
+    transition: all 0.3s ease;
+}
+
+.player-lives.life-lost {
+    animation: heartBeat 0.5s ease;
+}
+
+@keyframes heartBeat {
+    0% { transform: scale(1); }
+    25% { transform: scale(1.4); }
+    50% { transform: scale(0.8); }
+    75% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* ======================================================
+   WINS LIMIT: Selector en Lobby
+====================================================== */
+.wins-limit-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.wins-limit-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.wins-limit-suffix {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.wins-limit-options {
+    display: flex;
+    gap: 6px;
+}
+
+.wins-opt {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    color: #94a3b8;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 5px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.wins-opt:hover {
+    background: rgba(0, 255, 255, 0.1);
+    border-color: #00ffff;
+    color: #00ffff;
+}
+
+.wins-opt.active {
+    background: rgba(0, 255, 255, 0.2);
+    border-color: #00ffff;
+    color: #00ffff;
+    box-shadow: 0 0 12px rgba(0, 255, 255, 0.35);
+}
+
+/* ======================================================
+   WINS LIMIT TAG en HUD
+====================================================== */
+.wins-limit-tag {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: #facc15;
+    background: rgba(250, 204, 21, 0.12);
+    border: 1px solid rgba(250, 204, 21, 0.35);
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+}
+
+/* ======================================================
+   OVERLAY ESPECTACULAR DE VICTORIA DE PARTIDA
+====================================================== */
+.match-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 6, 15, 0.92);
+    backdrop-filter: blur(20px);
+    animation: overlayFadeIn 0.6s ease forwards;
+}
+
+.match-overlay.hidden {
+    display: none;
+}
+
+@keyframes overlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.match-overlay-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+    padding: 48px 40px;
+    background: rgba(12, 18, 36, 0.9);
+    border: 2px solid rgba(255, 215, 0, 0.4);
+    border-radius: 24px;
+    box-shadow:
+        0 0 60px rgba(255, 215, 0, 0.25),
+        0 0 120px rgba(255, 215, 0, 0.1),
+        inset 0 0 30px rgba(255, 215, 0, 0.05);
+    animation: overlayPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.2s both;
+    max-width: 480px;
+    width: 90%;
+}
+
+@keyframes overlayPop {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.match-emoji {
+    font-size: 72px;
+    animation: trophySpin 1.5s ease 0.4s both;
+    filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.9));
+    line-height: 1;
+}
+
+@keyframes trophySpin {
+    0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+    60% { transform: scale(1.2) rotate(10deg); }
+    80% { transform: scale(0.9) rotate(-5deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.match-title-line {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #facc15;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+.match-winner-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(26px, 7vw, 44px);
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #ffd700 0%, #ffffff 50%, #ffd700 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: none;
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.6));
+    animation: nameGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes nameGlow {
+    from { filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4)); }
+    to { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 1)); }
+}
+
+.match-subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #94a3b8;
+}
+
+.match-final-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 8px 28px;
+    border-radius: 12px;
+    letter-spacing: 4px;
+}
+
+.match-overlay-buttons {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 6px;
+}
+
+/* Victory color: P1 cyan */
+.match-overlay.winner-p1 .match-overlay-inner {
+    border-color: rgba(0, 255, 255, 0.5);
+    box-shadow:
+        0 0 60px rgba(0, 255, 255, 0.2),
+        0 0 120px rgba(0, 255, 255, 0.08),
+        inset 0 0 30px rgba(0, 255, 255, 0.04);
+}
+.match-overlay.winner-p1 .match-winner-name {
+    background: linear-gradient(135deg, #00ffff 0%, #ffffff 50%, #00ffff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.7));
+}
+.match-overlay.winner-p1 .wins-limit-tag,
+.match-overlay.winner-p1 .match-title-line {
+    color: #00ffff;
+}
+
+/* Victory color: P2 magenta */
+.match-overlay.winner-p2 .match-overlay-inner {
+    border-color: rgba(255, 0, 255, 0.5);
+    box-shadow:
+        0 0 60px rgba(255, 0, 255, 0.2),
+        0 0 120px rgba(255, 0, 255, 0.08),
+        inset 0 0 30px rgba(255, 0, 255, 0.04);
+}
+.match-overlay.winner-p2 .match-winner-name {
+    background: linear-gradient(135deg, #ff00ff 0%, #ffffff 50%, #ff00ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 10px rgba(255, 0, 255, 0.7));
+}
+.match-overlay.winner-p2 .match-title-line {
+    color: #ff00ff;
+}
+
+/* Draw color: white/silver */
+.match-overlay.winner-draw .match-winner-name {
+    background: linear-gradient(135deg, #94a3b8 0%, #ffffff 50%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}

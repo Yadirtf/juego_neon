@@ -38,6 +38,18 @@
                     <button id="createRoomBtn" class="cyber-btn">CREAR SALA ➕</button>
                 </div>
 
+                <!-- Configuración de partida: Límite de victorias -->
+                <div class="wins-limit-row">
+                    <span class="wins-limit-label">🏆 Primero en ganar:</span>
+                    <div class="wins-limit-options">
+                        <button class="wins-opt active" data-wins="3">3</button>
+                        <button class="wins-opt" data-wins="5">5</button>
+                        <button class="wins-opt" data-wins="7">7</button>
+                        <button class="wins-opt" data-wins="10">10</button>
+                    </div>
+                    <span class="wins-limit-suffix">rondas</span>
+                </div>
+
                 <div class="input-row" style="margin-top: 5px;">
                     <input type="text" id="roomCodeInput" class="cyber-input" placeholder="CÓDIGO DE SALA (Ej: NEON-7X2A)" maxlength="10" autocomplete="off">
                     <button id="joinCodeBtn" class="cyber-btn cyber-btn-secondary">UNIRSE CON CÓDIGO 🔑</button>
@@ -63,6 +75,7 @@
                     <span id="currentRoomCode" class="room-code-badge clickable-badge" title="Haz clic para copiar el código 📋">NEON-----</span>
                     <span id="currentRoomName" style="color: #94a3b8; font-weight: 400; font-size: 12px;">(--)</span>
                 </div>
+                <div id="winsLimitTag" class="wins-limit-tag">🏆 <span id="winsLimitVal">3</span> victorias</div>
                 <div class="hud-actions">
                     <button id="copyCodeBtn" class="cyber-btn cyber-btn-secondary" style="padding: 6px 12px; font-size: 11px;">CÓDIGO 📋</button>
                     <button id="copyLinkBtn" class="cyber-btn cyber-btn-secondary" style="padding: 6px 12px; font-size: 11px;">ENLACE 🔗</button>
@@ -72,6 +85,7 @@
 
             <div class="hud-row-scores">
                 <div class="score-box score-p1">
+                    <div class="player-lives" id="livesP1">❤️❤️❤️</div>
                     <span id="nameP1">P1</span>
                     <span class="score-num" id="scoreP1">0</span>
                 </div>
@@ -79,6 +93,7 @@
                 <div class="score-box score-p2">
                     <span class="score-num" id="scoreP2">0</span>
                     <span id="nameP2">P2</span>
+                    <div class="player-lives" id="livesP2">❤️❤️❤️</div>
                 </div>
             </div>
         </div>
@@ -105,6 +120,21 @@
             <div class="btn-dir" id="btnLeft">◀</div>
             <div class="btn-dir" id="btnDown">▼</div>
             <div class="btn-dir" id="btnRight">▶</div>
+        </div>
+    </div>
+
+    <!-- Overlay Espectacular de Victoria de Partida -->
+    <div id="matchOverlay" class="match-overlay hidden">
+        <div class="match-overlay-inner">
+            <div id="matchWinnerEmoji" class="match-emoji">🏆</div>
+            <div class="match-title-line">CAMPEÓN</div>
+            <div id="matchWinnerName" class="match-winner-name">???</div>
+            <div id="matchSubtitle" class="match-subtitle">¡Partida Finalizada!</div>
+            <div id="matchFinalScore" class="match-final-score">0 - 0</div>
+            <div class="match-overlay-buttons">
+                <button id="rematchBtn" class="cyber-btn">🔄 REVANCHA</button>
+                <button id="backLobbyBtn" class="cyber-btn cyber-btn-secondary">🚪 VOLVER AL LOBBY</button>
+            </div>
         </div>
     </div>
 

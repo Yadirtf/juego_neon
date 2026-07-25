@@ -10,10 +10,14 @@ let particles = [];
 let floatingReactions = [];
 let previousStatus = 'waiting';
 let previousCountdown = -1;
+let currentConfig = { winsLimit: 3 };
+let currentGameData = null;
+let witchPulse = 0; // para animación de bruja
 
 // --- ELEMENTOS DEL DOM ---
 const lobbyScreen = document.getElementById('lobbyScreen');
 const gameContainer = document.getElementById('gameContainer');
+const matchOverlay = document.getElementById('matchOverlay');
 const aliasInput = document.getElementById('aliasInput');
 const roomNameInput = document.getElementById('roomNameInput');
 const roomCodeInput = document.getElementById('roomCodeInput');
@@ -26,6 +30,9 @@ const copyCodeBtn = document.getElementById('copyCodeBtn');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 const leaveRoomBtn = document.getElementById('leaveRoomBtn');
 const toast = document.getElementById('toast');
+const livesP1El = document.getElementById('livesP1');
+const livesP2El = document.getElementById('livesP2');
+const winsLimitValEl = document.getElementById('winsLimitVal');
 
 // Pre-cargar Alias guardado en localStorage (si existe)
 if (localStorage.getItem('neonAlias')) {
@@ -59,6 +66,16 @@ function copyRoomCodeToClipboard(code) {
         showToast(`Código: ${code}`);
     });
 }
+
+// --- SELECTOR WINS LIMIT ---
+let selectedWinsLimit = 3;
+document.querySelectorAll('.wins-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.wins-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedWinsLimit = parseInt(btn.getAttribute('data-wins'));
+    });
+});
 
 // --- SISTEMA DE AUDIO (Web Audio API) ---
 class SoundEngine {
@@ -149,6 +166,58 @@ class SoundEngine {
             osc.stop(this.ctx.currentTime + 0.15);
         } catch (e) {}
     }
+    playWitch() {
+        if (!this.ctx) return;
+        try {
+            // Sonido mágico: arpeggio ascendente en Do mayor
+            const freqs = [523.25, 659.25, 783.99, 1046.50];
+            freqs.forEach((f, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.06);
+                gain.gain.setValueAtTime(0, this.ctx.currentTime + i * 0.06);
+                gain.gain.linearRampToValueAtTime(0.22, this.ctx.currentTime + i * 0.06 + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.06 + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(this.ctx.currentTime + i * 0.06);
+                osc.stop(this.ctx.currentTime + i * 0.06 + 0.2);
+            });
+        } catch (e) {}
+    }
+    playVictory() {
+        if (!this.ctx) return;
+        try {
+            // Fanfarria épica: acorde de Do mayor + sweep
+            const chordFreqs = [261.63, 329.63, 392.00, 523.25];
+            chordFreqs.forEach((f) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(f, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(f * 2, this.ctx.currentTime + 0.6);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.0);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 1.0);
+            });
+            // Sweep descendente de celebración
+            const sw = this.ctx.createOscillator();
+            const swGain = this.ctx.createGain();
+            sw.type = 'sawtooth';
+            sw.frequency.setValueAtTime(1800, this.ctx.currentTime + 0.5);
+            sw.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 1.2);
+            swGain.gain.setValueAtTime(0.08, this.ctx.currentTime + 0.5);
+            swGain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.3);
+            sw.connect(swGain);
+            swGain.connect(this.ctx.destination);
+            sw.start(this.ctx.currentTime + 0.5);
+            sw.stop(this.ctx.currentTime + 1.3);
+        } catch (e) {}
+    }
 }
 const audio = new SoundEngine();
 
@@ -197,6 +266,7 @@ function renderRoomsList(rooms) {
                 <div class="room-name-row">
                     <span class="room-name">${escapeHTML(room.name)}</span>
                     <span class="room-code-badge clickable-badge" title="Haz clic para copiar el código 📋">${room.id}</span>
+                    ${room.winsLimit ? `<span class="wins-limit-tag">🏆${room.winsLimit}</span>` : ''}
                 </div>
                 <div class="room-details">
                     <span>👥 ${room.p1Name} vs ${room.p2Name}</span>
@@ -237,9 +307,11 @@ createRoomBtn.addEventListener('click', () => {
     audio.init();
     const alias = getAlias();
     const roomName = roomNameInput.value.trim();
+    const winsLimit = selectedWinsLimit;
 
-    socket.emit('createRoom', { roomName, alias }, (res) => {
+    socket.emit('createRoom', { roomName, alias, winsLimit }, (res) => {
         if (res && res.success) {
+            if (res.config) currentConfig = res.config;
             enterGameUI(res);
             showToast(`¡Sala ${res.roomId} creada con éxito!`);
         } else {
@@ -264,6 +336,7 @@ function joinRoom(roomId) {
 
     socket.emit('joinRoom', { roomId, alias }, (res) => {
         if (res && res.success) {
+            if (res.config) currentConfig = res.config;
             enterGameUI(res);
             if (res.role === 'spectator') {
                 showToast(`Te uniste a la sala ${res.roomId} como ESPECTADOR 👁️`);
@@ -283,12 +356,18 @@ function enterGameUI(data) {
     currentRoomCode.innerText = data.roomId;
     currentRoomName.innerText = data.roomName;
 
+    if (data.config) {
+        currentConfig = data.config;
+        winsLimitValEl.innerText = data.config.winsLimit;
+    }
+
     // Actualizar URL del navegador sin recargar para compartir el enlace fácilmente
     const newUrl = window.location.pathname + '?room=' + data.roomId;
     window.history.pushState({ path: newUrl }, '', newUrl);
 
     lobbyScreen.style.display = 'none';
     gameContainer.style.display = 'flex';
+    matchOverlay.classList.add('hidden');
 
     if (myRole === 'p1' || myRole === 'p2') {
         const color = myRole === 'p1' ? '#00ffff' : '#ff00ff';
@@ -307,10 +386,12 @@ function leaveGameUI() {
     latestState = null;
     particles = [];
     floatingReactions = [];
+    currentGameData = null;
 
     // Limpiar parámetro de URL
     window.history.pushState({}, '', window.location.pathname);
 
+    matchOverlay.classList.add('hidden');
     gameContainer.style.display = 'none';
     lobbyScreen.style.display = 'flex';
 }
@@ -343,6 +424,19 @@ leaveRoomBtn.addEventListener('click', () => {
     }
 });
 
+// Overlay de Victoria: botones
+document.getElementById('rematchBtn').addEventListener('click', () => {
+    if (!currentRoomId) return;
+    audio.init();
+    socket.emit('rematch');
+    matchOverlay.classList.add('hidden');
+});
+
+document.getElementById('backLobbyBtn').addEventListener('click', () => {
+    socket.emit('leaveRoom');
+    leaveGameUI();
+});
+
 // Advertencia al intentar cerrar o recargar la pestaña en medio de un duelo
 window.addEventListener('beforeunload', (e) => {
     if (currentRoomId && latestState && latestState.status === 'playing') {
@@ -355,16 +449,61 @@ socket.on('leftRoom', () => {
     leaveGameUI();
 });
 
+// Recepción de configuración de sala
+socket.on('roomConfig', (config) => {
+    if (config) {
+        currentConfig = config;
+        winsLimitValEl.innerText = config.winsLimit;
+    }
+});
+
 // --- RECEPCIÓN DE DATOS DE SALA ---
 socket.on('updateData', (data) => {
+    currentGameData = data;
     updateScoresUI(data);
 });
+
+function renderLives(el, count) {
+    if (!el) return;
+    const full = '❤️';
+    const empty = '🖤';
+    const maxLives = Math.max(count, 0);
+    let html = '';
+    // mostramos hasta 5 corazones para no desbordar el HUD
+    const display = Math.min(maxLives, 7);
+    for (let i = 0; i < display; i++) html += full;
+    if (maxLives > 7) html += `+${maxLives - 7}`;
+    if (maxLives === 0) html = '💀';
+    el.innerHTML = html;
+}
 
 function updateScoresUI(data) {
     document.getElementById('nameP1').innerText = data.names.p1;
     document.getElementById('nameP2').innerText = data.names.p2;
     document.getElementById('scoreP1').innerText = data.scores.p1;
     document.getElementById('scoreP2').innerText = data.scores.p2;
+
+    if (data.lives) {
+        const prevP1 = currentGameData ? (currentGameData.lives || {}).p1 : null;
+        const prevP2 = currentGameData ? (currentGameData.lives || {}).p2 : null;
+
+        renderLives(livesP1El, data.lives.p1);
+        renderLives(livesP2El, data.lives.p2);
+
+        // Animación de pérdida de vida
+        if (prevP1 !== null && data.lives.p1 < prevP1) {
+            livesP1El.classList.remove('life-lost');
+            void livesP1El.offsetWidth;
+            livesP1El.classList.add('life-lost');
+        }
+        if (prevP2 !== null && data.lives.p2 < prevP2) {
+            livesP2El.classList.remove('life-lost');
+            void livesP2El.offsetWidth;
+            livesP2El.classList.add('life-lost');
+        }
+    }
+
+    currentGameData = data;
 }
 
 socket.on('state', (state) => {
@@ -381,6 +520,100 @@ socket.on('state', (state) => {
     previousStatus = state.status;
     latestState = state;
 });
+
+// --- EVENTO VICTORIA DE PARTIDA ---
+socket.on('matchWin', (data) => {
+    audio.init();
+    audio.playVictory();
+
+    const { winner, winnerName, scores, lives, winsLimit, reason } = data;
+
+    matchOverlay.className = 'match-overlay';
+    matchOverlay.classList.add(`winner-${winner}`);
+
+    const emojiEl = document.getElementById('matchWinnerEmoji');
+    const nameEl = document.getElementById('matchWinnerName');
+    const subtitleEl = document.getElementById('matchSubtitle');
+    const scoreEl = document.getElementById('matchFinalScore');
+
+    if (winner === 'draw') {
+        emojiEl.textContent = '🤝';
+        nameEl.textContent = '¡EMPATE ÉPICO!';
+        subtitleEl.textContent = 'Ambos guerreros lo dieron todo';
+    } else {
+        emojiEl.textContent = '🏆';
+        nameEl.textContent = winnerName;
+        if (reason === 'lives') {
+            subtitleEl.textContent = '¡Victoria por dejar al rival sin vidas!';
+        } else {
+            subtitleEl.textContent = `¡Primero en alcanzar ${winsLimit} victorias!`;
+        }
+    }
+
+    scoreEl.textContent = `${scores.p1} — ${scores.p2}`;
+
+    matchOverlay.classList.remove('hidden');
+
+    // Explosión de partículas de celebración en canvas
+    createVictoryParticles(winner);
+});
+
+// Revancha iniciada por el servidor (el otro jugador solicitó revancha)
+socket.on('rematchStarted', () => {
+    matchOverlay.classList.add('hidden');
+    renderLives(livesP1El, 3);
+    renderLives(livesP2El, 3);
+});
+
+// Bruja recolectada: partículas moradas y texto flotante
+socket.on('witchCollected', ({ by, lives }) => {
+    audio.init();
+    audio.playWitch();
+
+    if (latestState) {
+        const p = by === 'p1' ? latestState.p1 : latestState.p2;
+        if (p) {
+            const cx = p.x * gridSize + gridSize / 2;
+            const cy = p.y * gridSize + gridSize / 2;
+            createWitchCollectedEffect(cx, cy, by);
+        }
+    }
+
+    // Actualizar corazones inmediatamente
+    if (lives) {
+        renderLives(livesP1El, lives.p1);
+        renderLives(livesP2El, lives.p2);
+    }
+});
+
+function createWitchCollectedEffect(cx, cy, role) {
+    const color = '#bf00ff';
+    for (let i = 0; i < 40; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5 + 2;
+        particles.push({
+            x: cx, y: cy,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 5 + 2,
+            color,
+            alpha: 1,
+            decay: Math.random() * 0.025 + 0.015
+        });
+    }
+
+    // Texto flotante
+    const heartColor = role === 'p1' ? '#00ffff' : '#ff00ff';
+    floatingReactions.push({
+        x: cx,
+        y: cy - 10,
+        emoji: '+❤️',
+        alpha: 1,
+        scale: 0.3,
+        vy: -1.5,
+        color: heartColor
+    });
+}
 
 // --- RECEPCIÓN DE REACCIONES RÁPIDAS ---
 socket.on('reaction', ({ role, emoji }) => {
@@ -446,9 +679,34 @@ function createExplosionParticles(state) {
     if (!state.p2.alive) addP(state.p2.x, state.p2.y, '#ff00ff');
 }
 
+function createVictoryParticles(winner) {
+    const colors = winner === 'p1'
+        ? ['#00ffff', '#00aaff', '#ffffff']
+        : winner === 'p2'
+            ? ['#ff00ff', '#ff0066', '#ffffff']
+            : ['#ffd700', '#ffffff', '#facc15'];
+
+    for (let i = 0; i < 120; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 9 + 2;
+        particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height * 0.5,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2,
+            size: Math.random() * 5 + 2,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            alpha: 1,
+            decay: Math.random() * 0.012 + 0.008
+        });
+    }
+}
+
 // --- BUCLE DE RENDERIZADO OPTIMIZADO (60 FPS requestAnimationFrame) ---
 function renderLoop() {
     requestAnimationFrame(renderLoop);
+
+    witchPulse += 0.08;
 
     ctx.fillStyle = '#070b16';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -485,9 +743,46 @@ function renderLoop() {
             msgDiv.innerText = `¡VICTORIA PARA ${document.getElementById('nameP1').innerText}!`; 
             msgDiv.style.color = '#00ffff'; 
         }
+    } else if (latestState.status === 'matchover') {
+        msgDiv.innerText = "PARTIDA TERMINADA";
+        msgDiv.style.color = '#ffd700';
     } else {
         msgDiv.innerText = "PARTIDA EN CURSO";
         msgDiv.style.color = '#00ffff';
+    }
+
+    // Dibujar Power-Ups (Bruja)
+    if (latestState.powerUps && latestState.powerUps.length > 0) {
+        const pulseAlpha = 0.45 + Math.sin(witchPulse) * 0.35;
+        const pulseSize = 1 + Math.sin(witchPulse * 1.2) * 0.3;
+
+        latestState.powerUps.forEach(pu => {
+            const px = pu.x * gridSize + gridSize / 2;
+            const py = pu.y * gridSize + gridSize / 2;
+
+            // Aura pulsante morada
+            const gradient = ctx.createRadialGradient(px, py, 0, px, py, gridSize * 2.5 * pulseSize);
+            gradient.addColorStop(0, `rgba(191, 0, 255, ${pulseAlpha * 0.8})`);
+            gradient.addColorStop(0.5, `rgba(140, 0, 200, ${pulseAlpha * 0.4})`);
+            gradient.addColorStop(1, `rgba(80, 0, 140, 0)`);
+            ctx.save();
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(px, py, gridSize * 2.5 * pulseSize, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Icono bruja (emoji)
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `${Math.floor(gridSize * 1.5 * pulseSize)}px sans-serif`;
+            ctx.globalAlpha = 0.9;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#bf00ff';
+            ctx.fillText('🧙', px, py);
+            ctx.restore();
+        });
     }
 
     const drawPlayerOptimized = (p) => {
