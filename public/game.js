@@ -33,6 +33,7 @@ const toast = document.getElementById('toast');
 const livesP1El = document.getElementById('livesP1');
 const livesP2El = document.getElementById('livesP2');
 const winsLimitValEl = document.getElementById('winsLimitVal');
+const joinCard = document.getElementById('joinCard');
 
 // Pre-cargar Alias guardado en localStorage (si existe)
 if (localStorage.getItem('neonAlias')) {
@@ -44,6 +45,9 @@ const urlParams = new URLSearchParams(window.location.search);
 const roomParam = urlParams.get('room');
 if (roomParam) {
     roomCodeInput.value = roomParam.toUpperCase();
+    if (joinCard) {
+        joinCard.classList.add('pre-filled');
+    }
 }
 
 function getAlias() {

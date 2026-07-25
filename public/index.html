@@ -29,13 +29,13 @@
                 <input type="text" id="aliasInput" class="cyber-input" placeholder="INGRESA TU ALIAS (Ej: Tron_01)" maxlength="12" autocomplete="off">
             </div>
 
-            <!-- Crear o Unirse por Código -->
-            <div class="cyber-card">
-                <h2 class="card-title">⚡ Crear o Ingresar a una Sala</h2>
+            <!-- Crear Sala -->
+            <div class="cyber-card" id="createCard">
+                <h2 class="card-title">➕ Crear una Nueva Sala</h2>
                 
                 <div class="input-row">
                     <input type="text" id="roomNameInput" class="cyber-input" placeholder="Nombre de tu sala (Opcional)" maxlength="20">
-                    <button id="createRoomBtn" class="cyber-btn">CREAR SALA ➕</button>
+                    <button id="createRoomBtn" class="cyber-btn">CREAR SALA 🚀</button>
                 </div>
 
                 <!-- Configuración de partida: Límite de victorias -->
@@ -49,10 +49,19 @@
                     </div>
                     <span class="wins-limit-suffix">rondas</span>
                 </div>
+            </div>
 
-                <div class="input-row" style="margin-top: 5px;">
+            <!-- Unirse por Código -->
+            <div class="cyber-card" id="joinCard">
+                <h2 class="card-title">🔑 Unirse a una Sala</h2>
+                
+                <div class="input-row">
                     <input type="text" id="roomCodeInput" class="cyber-input" placeholder="CÓDIGO DE SALA (Ej: NEON-7X2A)" maxlength="10" autocomplete="off">
-                    <button id="joinCodeBtn" class="cyber-btn cyber-btn-secondary">UNIRSE CON CÓDIGO 🔑</button>
+                    <button id="joinCodeBtn" class="cyber-btn cyber-btn-secondary">INGRESAR 🎮</button>
+                </div>
+                
+                <div class="card-hint">
+                    💡 El número de rondas e historial se define por la configuración inicial que estableció el creador de la sala.
                 </div>
             </div>
 
