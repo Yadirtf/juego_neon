@@ -503,14 +503,30 @@ function renderLoop() {
             ctx.shadowColor = p.color;
 
             ctx.beginPath();
-            const first = p.trail[0];
-            ctx.moveTo(first.x * gridSize + gridSize / 2, first.y * gridSize + gridSize / 2);
+            let prev = p.trail[0];
+            ctx.moveTo(prev.x * gridSize + gridSize / 2, prev.y * gridSize + gridSize / 2);
+
             for (let i = 1; i < p.trail.length; i++) {
                 const pt = p.trail[i];
-                ctx.lineTo(pt.x * gridSize + gridSize / 2, pt.y * gridSize + gridSize / 2);
+                const dx = Math.abs(pt.x - prev.x);
+                const dy = Math.abs(pt.y - prev.y);
+
+                if (dx > 1 || dy > 1) {
+                    ctx.moveTo(pt.x * gridSize + gridSize / 2, pt.y * gridSize + gridSize / 2);
+                } else {
+                    ctx.lineTo(pt.x * gridSize + gridSize / 2, pt.y * gridSize + gridSize / 2);
+                }
+                prev = pt;
             }
+
             if (p.alive) {
-                ctx.lineTo(p.x * gridSize + gridSize / 2, p.y * gridSize + gridSize / 2);
+                const dx = Math.abs(p.x - prev.x);
+                const dy = Math.abs(p.y - prev.y);
+                if (dx > 1 || dy > 1) {
+                    ctx.moveTo(p.x * gridSize + gridSize / 2, p.y * gridSize + gridSize / 2);
+                } else {
+                    ctx.lineTo(p.x * gridSize + gridSize / 2, p.y * gridSize + gridSize / 2);
+                }
             }
             ctx.stroke();
             ctx.restore();

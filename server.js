@@ -273,15 +273,15 @@ function startRoomGameLoop(room) {
             room.gameState.p1.vx = room.gameState.p1.nextVx;
             room.gameState.p1.vy = room.gameState.p1.nextVy;
             room.gameState.p1.trail.push({ x: room.gameState.p1.x, y: room.gameState.p1.y });
-            room.gameState.p1.x += room.gameState.p1.vx;
-            room.gameState.p1.y += room.gameState.p1.vy;
+            room.gameState.p1.x = (room.gameState.p1.x + room.gameState.p1.vx + width) % width;
+            room.gameState.p1.y = (room.gameState.p1.y + room.gameState.p1.vy + height) % height;
         }
         if (room.gameState.p2.alive) {
             room.gameState.p2.vx = room.gameState.p2.nextVx;
             room.gameState.p2.vy = room.gameState.p2.nextVy;
             room.gameState.p2.trail.push({ x: room.gameState.p2.x, y: room.gameState.p2.y });
-            room.gameState.p2.x += room.gameState.p2.vx;
-            room.gameState.p2.y += room.gameState.p2.vy;
+            room.gameState.p2.x = (room.gameState.p2.x + room.gameState.p2.vx + width) % width;
+            room.gameState.p2.y = (room.gameState.p2.y + room.gameState.p2.vy + height) % height;
         }
 
         checkRoomCollisions(room);
@@ -330,10 +330,10 @@ function checkRoomCollisions(room) {
     const p1Hit = trailSet.has(`${gs.p1.x},${gs.p1.y}`);
     const p2Hit = trailSet.has(`${gs.p2.x},${gs.p2.y}`);
 
-    if (gs.p1.x < 0 || gs.p1.x >= width || gs.p1.y < 0 || gs.p1.y >= height || p1Hit) {
+    if (p1Hit) {
         gs.p1.alive = false;
     }
-    if (gs.p2.x < 0 || gs.p2.x >= width || gs.p2.y < 0 || gs.p2.y >= height || p2Hit) {
+    if (p2Hit) {
         gs.p2.alive = false;
     }
 
