@@ -26,8 +26,8 @@ let countdownInterval;
 
 function resetGame() {
     return {
-        p1: { x: 10, y: height / 2, vx: 1, vy: 0, trail: [], alive: true, color: '#00ffff' },
-        p2: { x: width - 10, y: height / 2, vx: -1, vy: 0, trail: [], alive: true, color: '#ff00ff' },
+        p1: { x: 10, y: Math.floor(height / 2), vx: 1, vy: 0, nextVx: 1, nextVy: 0, trail: [], alive: true, color: '#00ffff' },
+        p2: { x: width - 10, y: Math.floor(height / 2), vx: -1, vy: 0, nextVx: -1, nextVy: 0, trail: [], alive: true, color: '#ff00ff' },
         status: 'waiting',
         countdownTime: 3
     };
@@ -44,6 +44,11 @@ io.on('connection', (socket) => {
     socket.emit('init', { role, gameData });
     io.emit('updateData', gameData);
     socket.emit('state', gameState);
+
+    // Medición de latencia / ping
+    socket.on('pingCheck', (callback) => {
+        if (typeof callback === 'function') callback();
+    });
 
     // Cuando el jugador da clic en "Entrar a la Sala"
     socket.on('setAlias', (alias) => {
@@ -64,12 +69,13 @@ io.on('connection', (socket) => {
     socket.on('move', (dir) => {
         if (gameState.status !== 'playing') return;
         let p = role === 'p1' ? gameState.p1 : (role === 'p2' ? gameState.p2 : null);
-        if (!p) return;
+        if (!p || !p.alive) return;
 
-        if (dir === 'up' && p.vy === 0) { p.vx = 0; p.vy = -1; }
-        if (dir === 'down' && p.vy === 0) { p.vx = 0; p.vy = 1; }
-        if (dir === 'left' && p.vx === 0) { p.vx = -1; p.vy = 0; }
-        if (dir === 'right' && p.vx === 0) { p.vx = 1; p.vy = 0; }
+        // Evitar giros de 180° inmediatos o múltiples giros por tick
+        if (dir === 'up' && p.vy === 0 && p.nextVy === 0) { p.nextVx = 0; p.nextVy = -1; }
+        if (dir === 'down' && p.vy === 0 && p.nextVy === 0) { p.nextVx = 0; p.nextVy = 1; }
+        if (dir === 'left' && p.vx === 0 && p.nextVx === 0) { p.nextVx = -1; p.nextVy = 0; }
+        if (dir === 'right' && p.vx === 0 && p.nextVx === 0) { p.nextVx = 1; p.nextVy = 0; }
     });
 
     socket.on('disconnect', () => {
@@ -114,11 +120,15 @@ function startGameLoop() {
         if (gameState.status !== 'playing') return;
 
         if (gameState.p1.alive) {
+            gameState.p1.vx = gameState.p1.nextVx;
+            gameState.p1.vy = gameState.p1.nextVy;
             gameState.p1.trail.push({ x: gameState.p1.x, y: gameState.p1.y });
             gameState.p1.x += gameState.p1.vx;
             gameState.p1.y += gameState.p1.vy;
         }
         if (gameState.p2.alive) {
+            gameState.p2.vx = gameState.p2.nextVx;
+            gameState.p2.vy = gameState.p2.nextVy;
             gameState.p2.trail.push({ x: gameState.p2.x, y: gameState.p2.y });
             gameState.p2.x += gameState.p2.vx;
             gameState.p2.y += gameState.p2.vy;
@@ -138,7 +148,8 @@ function startGameLoop() {
 
             console.log(`[!] Fin de ronda. Ganador: ${winner}. Marcador: ${gameData.scores.p1} - ${gameData.scores.p2}`);
 
-            io.emit('updateData', gameData); // Actualiza la pantalla de puntajes
+            io.emit('updateData', gameData);
+            io.emit('state', gameState);
 
             // Reinicio automático
             setTimeout(() => {
@@ -150,13 +161,30 @@ function startGameLoop() {
 }
 
 function checkCollisions() {
-    const hitTrail = (x, y) => gameState.p1.trail.some(t => t.x === x && t.y === y) || gameState.p2.trail.some(t => t.x === x && t.y === y);
+    const trailSet = new Set();
 
-    if (gameState.p1.x < 0 || gameState.p1.x >= width || gameState.p1.y < 0 || gameState.p1.y >= height) gameState.p1.alive = false;
-    if (gameState.p2.x < 0 || gameState.p2.x >= width || gameState.p2.y < 0 || gameState.p2.y >= height) gameState.p2.alive = false;
+    if (gameState.p1 && gameState.p1.trail) {
+        for (let i = 0; i < gameState.p1.trail.length; i++) {
+            const t = gameState.p1.trail[i];
+            trailSet.add(`${t.x},${t.y}`);
+        }
+    }
+    if (gameState.p2 && gameState.p2.trail) {
+        for (let i = 0; i < gameState.p2.trail.length; i++) {
+            const t = gameState.p2.trail[i];
+            trailSet.add(`${t.x},${t.y}`);
+        }
+    }
 
-    if (hitTrail(gameState.p1.x, gameState.p1.y)) gameState.p1.alive = false;
-    if (hitTrail(gameState.p2.x, gameState.p2.y)) gameState.p2.alive = false;
+    const p1Hit = trailSet.has(`${gameState.p1.x},${gameState.p1.y}`);
+    const p2Hit = trailSet.has(`${gameState.p2.x},${gameState.p2.y}`);
+
+    if (gameState.p1.x < 0 || gameState.p1.x >= width || gameState.p1.y < 0 || gameState.p1.y >= height || p1Hit) {
+        gameState.p1.alive = false;
+    }
+    if (gameState.p2.x < 0 || gameState.p2.x >= width || gameState.p2.y < 0 || gameState.p2.y >= height || p2Hit) {
+        gameState.p2.alive = false;
+    }
 
     if (gameState.p1.x === gameState.p2.x && gameState.p1.y === gameState.p2.y) {
         gameState.p1.alive = false;
