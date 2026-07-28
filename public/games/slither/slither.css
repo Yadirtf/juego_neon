@@ -250,7 +250,12 @@ h1.cyber-title {
     display: none;
 }
 
-@media (max-width: 768px) {
+/*
+ * Muestra los controles táctiles en:
+ *  - Cualquier dispositivo con puntero táctil (celular, tablet) → pointer: coarse
+ *  - O cualquier pantalla pequeña ≤ 1024px como respaldo
+ */
+@media (pointer: coarse), (max-width: 1024px) {
     #mobileControlsContainer {
         display: block;
     }
