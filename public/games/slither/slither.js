@@ -32,8 +32,19 @@ const lbList         = document.getElementById('lbList');
 const scoreVal       = document.getElementById('scoreVal');
 const modeVal        = document.getElementById('modeVal');
 const finalScoreVal  = document.getElementById('finalScoreVal');
-const mobileBoostBtn = document.getElementById('mobileBoostBtn');
-const boostBarFill   = document.getElementById('boostBarFill');
+const mobileAccelerateBtn = document.getElementById('mobileAccelerateBtn');
+const joystickZone        = document.getElementById('joystickZone');
+const joystickStick       = document.getElementById('joystickStick');
+const boostBarFill        = document.getElementById('boostBarFill');
+
+// ─── Estado del Joystick Virtual ─────────────────────────────────────────────
+let joystickActive    = false;
+let joystickTouchId   = null;
+let joystickBaseX     = 0;    // centro del base en pantalla
+let joystickBaseY     = 0;
+const JOYSTICK_RADIUS = 60;   // radio del base (en px)
+const STICK_LIMIT     = 37;   // máx. desplazamiento del stick
+let joystickAngle     = null; // null → usa mouseX/mouseY
 
 if (localStorage.getItem('neonAlias')) {
     aliasInput.value = localStorage.getItem('neonAlias');
@@ -101,31 +112,103 @@ window.addEventListener('mousemove', (e) => {
 window.addEventListener('mousedown', () => { isBoosting = true;  });
 window.addEventListener('mouseup',   () => { isBoosting = false; });
 
-mobileBoostBtn.addEventListener('touchstart', (e) => {
+// ─── Botón Acelerador Móvil ───────────────────────────────────────────────────
+mobileAccelerateBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
     isBoosting = true;
 }, { passive: false });
-mobileBoostBtn.addEventListener('touchend', (e) => {
+mobileAccelerateBtn.addEventListener('touchend', (e) => {
     e.preventDefault();
     isBoosting = false;
 }, { passive: false });
+mobileAccelerateBtn.addEventListener('touchcancel', (e) => {
+    isBoosting = false;
+}, { passive: true });
 
+// ─── Joystick Virtual ────────────────────────────────────────────────────────
+function getJoystickRect() {
+    return joystickZone.getBoundingClientRect();
+}
+
+joystickZone.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (joystickActive) return; // solo un dedo en el joystick
+    const touch = e.changedTouches[0];
+    joystickTouchId = touch.identifier;
+    joystickActive  = true;
+    const rect = getJoystickRect();
+    joystickBaseX = rect.left + rect.width  / 2;
+    joystickBaseY = rect.top  + rect.height / 2;
+    updateJoystick(touch.clientX, touch.clientY);
+}, { passive: false });
+
+joystickZone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (const touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            updateJoystick(touch.clientX, touch.clientY);
+            break;
+        }
+    }
+}, { passive: false });
+
+joystickZone.addEventListener('touchend', (e) => {
+    for (const touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            joystickActive  = false;
+            joystickTouchId = null;
+            joystickAngle   = null;
+            joystickStick.style.transform = 'translate(0px, 0px)';
+            break;
+        }
+    }
+}, { passive: true });
+
+joystickZone.addEventListener('touchcancel', () => {
+    joystickActive  = false;
+    joystickTouchId = null;
+    joystickAngle   = null;
+    joystickStick.style.transform = 'translate(0px, 0px)';
+}, { passive: true });
+
+function updateJoystick(cx, cy) {
+    const dx = cx - joystickBaseX;
+    const dy = cy - joystickBaseY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const clampedDist = Math.min(dist, STICK_LIMIT);
+    const angle = Math.atan2(dy, dx);
+    joystickAngle = angle; // guardar ángulo para sendDirection
+    const sx = Math.cos(angle) * clampedDist;
+    const sy = Math.sin(angle) * clampedDist;
+    joystickStick.style.transform = `translate(${sx}px, ${sy}px)`;
+}
+
+// Touchmove general: solo actualiza mouse en pantallas NO móviles / dedos fuera del joystick
 window.addEventListener('touchmove', (e) => {
-    if (e.touches.length > 0) {
-        mouseX = e.touches[0].clientX;
-        mouseY = e.touches[0].clientY;
+    // Si hay joystick activo, no sobreescribir el ángulo con el touch general
+    for (const touch of e.touches) {
+        if (joystickActive && touch.identifier === joystickTouchId) continue;
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+        break;
     }
 }, { passive: true });
 
 // Enviar dirección cada frame (en lugar de solo en eventos) para respuesta inmediata
 function sendDirection() {
     if (!mySnakeId || isDead) return; // No enviar si estamos muertos (espectador)
-    const centerX = window.innerWidth  / 2;
-    const centerY = window.innerHeight / 2;
-    const dx = mouseX - centerX;
-    const dy = mouseY - centerY;
-    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
-    const targetAngle = Math.atan2(dy, dx);
+    let targetAngle;
+    if (joystickActive && joystickAngle !== null) {
+        // Joystick activo: usar ángulo calculado por el joystick
+        targetAngle = joystickAngle;
+    } else {
+        const centerX = window.innerWidth  / 2;
+        const centerY = window.innerHeight / 2;
+        const dx = mouseX - centerX;
+        const dy = mouseY - centerY;
+        if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+        targetAngle = Math.atan2(dy, dx);
+    }
     socket.emit('updateInput', { targetAngle, boosting: isBoosting });
 }
 

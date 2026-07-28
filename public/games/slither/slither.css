@@ -246,28 +246,123 @@ h1.cyber-title {
     height: 100%;
 }
 
-#mobileBoostBtn {
+#mobileControlsContainer {
     display: none;
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 40;
-    background: linear-gradient(135deg, #ff0055 0%, #ff5500 100%);
-    color: #fff;
-    font-family: 'Orbitron', sans-serif;
-    font-weight: 900;
-    font-size: 16px;
-    padding: 14px 35px;
-    border-radius: 30px;
-    border: none;
-    box-shadow: 0 0 20px rgba(255, 0, 85, 0.5);
-    cursor: pointer;
 }
 
 @media (max-width: 768px) {
-    #mobileBoostBtn {
+    #mobileControlsContainer {
         display: block;
+    }
+
+    /* Joystick Izquierdo */
+    #joystickZone {
+        position: fixed;
+        bottom: 30px;
+        left: 30px;
+        width: 130px;
+        height: 130px;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        touch-action: none;
+    }
+
+    #joystickBase {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 3px solid rgba(255, 255, 255, 0.35);
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #joystickStick {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 0 15px rgba(255, 255, 255, 0.8);
+        position: absolute;
+        transition: transform 0.05s ease-out;
+        will-change: transform;
+    }
+
+    /* Botón Acelerador Derecho */
+    #mobileAccelerateContainer {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 110px;
+        height: 110px;
+        z-index: 40;
+        touch-action: none;
+    }
+
+    #mobileAccelerateBtn {
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        border: none;
+        outline: none;
+        padding: 0;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        touch-action: none;
+    }
+
+    .hex-svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        fill: rgba(255, 255, 255, 0.03);
+        stroke: rgba(255, 255, 255, 0.35);
+        stroke-width: 3.5;
+        filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.15));
+        transition: fill 0.2s, stroke 0.2s;
+    }
+
+    #mobileAccelerateBtn:active .hex-svg {
+        fill: rgba(255, 255, 255, 0.15);
+        stroke: rgba(255, 255, 255, 0.7);
+        filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.4));
+    }
+
+    .arrow-container {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+
+    .arrow-up {
+        font-size: 26px;
+        color: #ffffff;
+        text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+        line-height: 1;
+        margin-bottom: 2px;
+    }
+
+    .dot {
+        width: 6px;
+        height: 6px;
+        background-color: #ffffff;
+        border-radius: 50%;
+        margin: 2px 0;
+        box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+        opacity: 0.8;
     }
 }
 

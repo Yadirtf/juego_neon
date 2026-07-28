@@ -72,8 +72,30 @@
             <canvas id="minimapCanvas" width="120" height="120"></canvas>
         </div>
 
-        <!-- Botón Boost para móviles -->
-        <button id="mobileBoostBtn">⚡ BOOST</button>
+        <!-- Controles para móviles -->
+        <div id="mobileControlsContainer">
+            <!-- Joystick izquierdo (dirección) -->
+            <div id="joystickZone">
+                <div id="joystickBase">
+                    <div id="joystickStick"></div>
+                </div>
+            </div>
+
+            <!-- Botón acelerador derecho -->
+            <div id="mobileAccelerateContainer">
+                <button id="mobileAccelerateBtn">
+                    <svg viewBox="0 0 100 100" class="hex-svg">
+                        <polygon points="50,5 95,25 95,75 50,95 5,75 5,25" />
+                    </svg>
+                    <div class="arrow-container">
+                        <span class="arrow-up">▲</span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Canvas Principal -->
