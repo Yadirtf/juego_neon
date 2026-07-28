@@ -1,0 +1,12 @@
+{
+  "id": "tron",
+  "name": "Neon Tron 1v1",
+  "description": "Duelo táctico de motos de luz neón. Deja un rastro de luz y encierra a tu oponente.",
+  "icon": "⚡",
+  "minPlayers": 1,
+  "maxPlayers": 2,
+  "modes": ["multiplayer", "spectator"],
+  "status": "active",
+  "path": "/games/tron/",
+  "badge": "1v1 Clasico"
+}

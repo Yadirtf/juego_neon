@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NeonSlither.io - Neon Arcade</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="slither.css">
+</head>
+
+<body>
+
+    <a href="/" class="back-hub-btn">🏠 LOBBY PRINCIPAL</a>
+
+    <!-- Pantalla de Selección / Menú -->
+    <div id="menuScreen">
+        <div class="menu-card">
+            <div class="cyber-header">
+                <h1 class="cyber-title">NEON SLITHER</h1>
+                <p class="cyber-subtitle">Arena Masiva Neón de Serpientes</p>
+            </div>
+
+            <div class="input-group">
+                <label for="aliasInput">👤 TU ALIAS</label>
+                <input type="text" id="aliasInput" class="cyber-input" placeholder="Ej: CyberViper" maxlength="12" autocomplete="off">
+            </div>
+
+            <div class="mode-buttons">
+                <button id="playMultiBtn" class="cyber-btn">
+                    <span class="btn-icon">🌐</span> MULTIJUGADOR (BATTLE ROYALE)
+                </button>
+                <button id="playSoloBtn" class="cyber-btn cyber-btn-secondary">
+                    <span class="btn-icon">🤖</span> MODO SOLITARIO (CON BOTS)
+                </button>
+            </div>
+
+            <div class="controls-guide">
+                <span>🖱️ <b>Mouse / Pantalla:</b> Dirige tu serpiente</span>
+                <span>⚡ <b>Click / Mantener:</b> Aceleración Turbo</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD de Juego -->
+    <div id="gameHud" style="display: none;">
+        <!-- Leaderboard -->
+        <div id="leaderboard">
+            <div class="lb-title">🏆 TOP SERPIENTES</div>
+            <ol id="lbList"></ol>
+        </div>
+
+        <!-- Stats del Jugador -->
+        <div id="playerStats">
+            <div>PUNTOS: <span id="scoreVal">100</span></div>
+            <div>MODO: <span id="modeVal">--</span></div>
+        </div>
+
+        <!-- Barra de Energía Boost -->
+        <div id="boostBar">
+            <div class="boost-label">⚡ ENERGÍA</div>
+            <div class="boost-track">
+                <div id="boostBarFill"></div>
+            </div>
+        </div>
+
+        <!-- Minimapa -->
+        <div id="minimapWrapper">
+            <canvas id="minimapCanvas" width="120" height="120"></canvas>
+        </div>
+
+        <!-- Botón Boost para móviles -->
+        <button id="mobileBoostBtn">⚡ BOOST</button>
+    </div>
+
+    <!-- Canvas Principal -->
+    <canvas id="slitherCanvas"></canvas>
+
+    <!-- Overlay Game Over -->
+    <div id="gameOverOverlay" class="gameover-overlay hidden">
+        <div class="gameover-card">
+            <div class="gameover-emoji">💀</div>
+            <h2 class="gameover-title">¡HAS EXPLOTADO!</h2>
+            <div class="gameover-score">PUNTUACIÓN FINAL: <span id="finalScoreVal">0</span></div>
+            <div class="gameover-buttons">
+                <button id="respawnBtn" class="cyber-btn">🔄 REINSERTARSE</button>
+                <button id="backMenuBtn" class="cyber-btn cyber-btn-secondary">🚪 CAMBIAR MODO</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="slither.js" defer></script>
+</body>
+
+</html>

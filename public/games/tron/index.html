@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Tron 1v1 - Neon Arcade</title>
+    <!-- Google Fonts: Orbitron & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <a href="/" class="back-hub-btn">🏠 LOBBY PRINCIPAL</a>
+
+    <!-- Pantalla de Lobby Multi-Sala -->
+    <div id="lobbyScreen">
+        <div class="lobby-container">
+            <div class="cyber-header">
+                <h1 class="cyber-title">NEON TRON 1v1</h1>
+                <p class="cyber-subtitle">Duelo táctico de motos de luz en tiempo real</p>
+            </div>
+
+            <!-- Identificación de Jugador -->
+            <div class="cyber-card">
+                <h2 class="card-title">👤 Tu Identificación</h2>
+                <input type="text" id="aliasInput" class="cyber-input" placeholder="INGRESA TU ALIAS (Ej: Tron_01)" maxlength="12" autocomplete="off">
+            </div>
+
+            <!-- Crear Sala -->
+            <div class="cyber-card" id="createCard">
+                <h2 class="card-title">➕ Crear una Nueva Sala</h2>
+                
+                <div class="input-row">
+                    <input type="text" id="roomNameInput" class="cyber-input" placeholder="Nombre de tu sala (Opcional)" maxlength="20">
+                    <button id="createRoomBtn" class="cyber-btn">CREAR SALA 🚀</button>
+                </div>
+
+                <div class="wins-limit-row">
+                    <span class="wins-limit-label">🏆 Primero en ganar:</span>
+                    <div class="wins-limit-options">
+                        <button class="wins-opt active" data-wins="3">3</button>
+                        <button class="wins-opt" data-wins="5">5</button>
+                        <button class="wins-opt" data-wins="7">7</button>
+                        <button class="wins-opt" data-wins="10">10</button>
+                    </div>
+                    <span class="wins-limit-suffix">rondas</span>
+                </div>
+            </div>
+
+            <!-- Unirse por Código -->
+            <div class="cyber-card" id="joinCard">
+                <h2 class="card-title">🔑 Unirse a una Sala</h2>
+                
+                <div class="input-row">
+                    <input type="text" id="roomCodeInput" class="cyber-input" placeholder="CÓDIGO DE SALA (Ej: NEON-7X2A)" maxlength="10" autocomplete="off">
+                    <button id="joinCodeBtn" class="cyber-btn cyber-btn-secondary">INGRESAR 🎮</button>
+                </div>
+                
+                <div class="card-hint">
+                    💡 El número de rondas se define por la configuración inicial del creador.
+                </div>
+            </div>
+
+            <!-- Explorador de Salas Activas -->
+            <div class="cyber-card">
+                <h2 class="card-title">🌐 Salas Activas Públicas</h2>
+                <div id="roomsListContainer" class="rooms-grid">
+                    <div class="no-rooms-msg">Cargando salas activas...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pantalla de Juego -->
+    <div id="gameContainer">
+        <div id="topBar">
+            <div class="hud-row-info">
+                <div class="hud-left-info">
+                    <span id="currentRoomCode" class="room-code-badge clickable-badge" title="Haz clic para copiar el código 📋">NEON-----</span>
+                    <span id="currentRoomName" class="room-name-header">(--)</span>
+                </div>
+                <div class="hud-right-info">
+                    <div id="winsLimitTag" class="wins-limit-tag">🏆 <span id="winsLimitVal">3</span> victorias</div>
+                    <button id="leaveRoomBtn" class="leave-icon-btn" title="Salir de la sala">🚪</button>
+                </div>
+            </div>
+
+            <div class="hud-row-share">
+                <button id="copyCodeBtn" class="share-btn">
+                    <span class="btn-icon">📋</span> <span class="btn-text">Copiar Código</span>
+                </button>
+                <button id="copyLinkBtn" class="share-btn">
+                    <span class="btn-icon">🔗</span> <span class="btn-text">Copiar Enlace</span>
+                </button>
+            </div>
+
+            <div class="hud-row-scores">
+                <div class="score-box score-p1">
+                    <div class="player-info-container">
+                        <div class="player-lives" id="livesP1">❤️❤️❤️</div>
+                        <span id="nameP1" class="player-name">P1</span>
+                    </div>
+                    <span class="score-num" id="scoreP1">0</span>
+                </div>
+                
+                <div id="pingDisplay" class="ping-chip">
+                    <span class="ping-dot"></span> PING: <span id="pingVal">--</span>ms
+                </div>
+                
+                <div class="score-box score-p2">
+                    <span class="score-num" id="scoreP2">0</span>
+                    <div class="player-info-container">
+                        <div class="player-lives" id="livesP2">❤️❤️❤️</div>
+                        <span id="nameP2" class="player-name">P2</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="canvasWrapper">
+            <canvas id="gameCanvas" width="600" height="600"></canvas>
+        </div>
+
+        <div id="reactionBar">
+            <button class="btn-emoji" data-emoji="🔥">🔥</button>
+            <button class="btn-emoji" data-emoji="😎">😎</button>
+            <button class="btn-emoji" data-emoji="💀">💀</button>
+            <button class="btn-emoji" data-emoji="⚡">⚡</button>
+            <button class="btn-emoji" data-emoji="👑">👑</button>
+            <button class="btn-emoji" data-emoji="😂">😂</button>
+        </div>
+
+        <div id="msg">ESPERANDO AL RIVAL...</div>
+
+        <div id="mobileControls">
+            <div class="btn-dir" id="btnUp">▲</div>
+            <div class="btn-dir" id="btnLeft">◀</div>
+            <div class="btn-dir" id="btnDown">▼</div>
+            <div class="btn-dir" id="btnRight">▶</div>
+        </div>
+    </div>
+
+    <!-- Overlay Victoria -->
+    <div id="matchOverlay" class="match-overlay hidden">
+        <div class="match-overlay-inner">
+            <div id="matchWinnerEmoji" class="match-emoji">🏆</div>
+            <div class="match-title-line">CAMPEÓN</div>
+            <div id="matchWinnerName" class="match-winner-name">???</div>
+            <div id="matchSubtitle" class="match-subtitle">¡Partida Finalizada!</div>
+            <div id="matchFinalScore" class="match-final-score">0 - 0</div>
+            <div class="match-overlay-buttons">
+                <button id="rematchBtn" class="cyber-btn">🔄 REVANCHA</button>
+                <button id="backLobbyBtn" class="cyber-btn cyber-btn-secondary">🚪 VOLVER AL LOBBY</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast">¡Código copiado al portapapeles! 📋</div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js" defer></script>
+</body>
+
+</html>

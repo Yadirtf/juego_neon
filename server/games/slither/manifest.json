@@ -1,0 +1,12 @@
+{
+  "id": "slither",
+  "name": "NeonSlither.io",
+  "description": "Arena neón masiva. Crece comiendo orbes de luz, haz que otros choquen contigo y domina el mapa.",
+  "icon": "🐍",
+  "minPlayers": 1,
+  "maxPlayers": 25,
+  "modes": ["multiplayer", "solo"],
+  "status": "active",
+  "path": "/games/slither/",
+  "badge": "Masivo Neón"
+}
