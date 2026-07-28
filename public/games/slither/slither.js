@@ -19,6 +19,9 @@ let cameraY = 1500;
 let isDead = false;          // Indica que el jugador murió y está en modo espectador
 let spectatorPos = null;     // Última posición conocida para cámara de espectador
 
+// Detecta si el dispositivo es táctil (móvil/tablet)
+const isMobileDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
 // ─── Elementos UI ────────────────────────────────────────────────────────────
 const menuScreen     = document.getElementById('menuScreen');
 const gameHud        = document.getElementById('gameHud');
@@ -201,6 +204,10 @@ function sendDirection() {
     if (joystickActive && joystickAngle !== null) {
         // Joystick activo: usar ángulo calculado por el joystick
         targetAngle = joystickAngle;
+    } else if (isMobileDevice) {
+        // En móvil sin joystick activo: no actualizar dirección
+        // El servidor mantiene el último ángulo recibido → serpiente sigue recta
+        return;
     } else {
         const centerX = window.innerWidth  / 2;
         const centerY = window.innerHeight / 2;
