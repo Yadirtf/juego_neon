@@ -260,11 +260,9 @@ h1.cyber-title {
         display: block;
     }
 
-    /* Joystick Izquierdo */
+    /* Joystick dinámico */
     #joystickZone {
         position: fixed;
-        bottom: 30px;
-        left: 30px;
         width: 130px;
         height: 130px;
         z-index: 40;
@@ -272,6 +270,8 @@ h1.cyber-title {
         align-items: center;
         justify-content: center;
         touch-action: none;
+        left: 30px;
+        bottom: 30px;
     }
 
     #joystickBase {
@@ -298,14 +298,14 @@ h1.cyber-title {
         will-change: transform;
     }
 
-    /* Botón Acelerador Derecho */
+    /* Botón Acelerador */
     #mobileAccelerateContainer {
         position: fixed;
-        bottom: 30px;
-        right: 30px;
         width: 110px;
         height: 110px;
         z-index: 40;
+        right: 30px;
+        bottom: 30px;
         touch-action: none;
     }
 
@@ -322,6 +322,16 @@ h1.cyber-title {
         justify-content: center;
         cursor: pointer;
         touch-action: none;
+    }
+
+    .mobile-controls-right #mobileAccelerateContainer {
+        left: 30px;
+        right: auto;
+    }
+
+    .mobile-controls-left #mobileAccelerateContainer {
+        right: 30px;
+        left: auto;
     }
 
     .hex-svg {

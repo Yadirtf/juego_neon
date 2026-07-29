@@ -38,6 +38,7 @@ const finalScoreVal  = document.getElementById('finalScoreVal');
 const mobileAccelerateBtn = document.getElementById('mobileAccelerateBtn');
 const joystickZone        = document.getElementById('joystickZone');
 const joystickStick       = document.getElementById('joystickStick');
+const mobileControlsContainer = document.getElementById('mobileControlsContainer');
 const boostBarFill        = document.getElementById('boostBarFill');
 
 // ─── Estado del Joystick Virtual ─────────────────────────────────────────────
@@ -51,10 +52,64 @@ const JOYSTICK_DEAD   = 12;
 let joystickAngle     = null;
 let joystickTurnPower = 1;
 let lastJoystickAngle = 0;
+const JOYSTICK_SIZE = 130;
+
+function clampJoystickPos(left, top) {
+    const min = 10;
+    const maxX = window.innerWidth  - JOYSTICK_SIZE - 10;
+    const maxY = window.innerHeight - JOYSTICK_SIZE - 10;
+    return {
+        left: Math.max(min, Math.min(left, maxX)),
+        top: Math.max(min, Math.min(top, maxY))
+    };
+}
+
+function setJoystickPositionAt(clientX, clientY) {
+    if (!joystickZone) return;
+    const targetLeft = clientX - JOYSTICK_SIZE / 2;
+    const targetTop  = clientY - JOYSTICK_SIZE / 2;
+    const pos = clampJoystickPos(targetLeft, targetTop);
+    joystickZone.style.left   = `${pos.left}px`;
+    joystickZone.style.top    = `${pos.top}px`;
+    joystickZone.style.right  = 'auto';
+    joystickZone.style.bottom = 'auto';
+}
+
+function updateMobileControlSide(clientX) {
+    if (!mobileControlsContainer) return;
+    if (clientX > window.innerWidth / 2) {
+        mobileControlsContainer.classList.add('mobile-controls-right');
+        mobileControlsContainer.classList.remove('mobile-controls-left');
+    } else {
+        mobileControlsContainer.classList.add('mobile-controls-left');
+        mobileControlsContainer.classList.remove('mobile-controls-right');
+    }
+}
+
+function isTouchOnControl(touch) {
+    return touch.target.closest('#joystickZone') || touch.target.closest('#mobileAccelerateBtn');
+}
+
+function resetJoystickPosition() {
+    if (!joystickZone) return;
+    joystickZone.style.left   = '30px';
+    joystickZone.style.top    = 'auto';
+    joystickZone.style.right  = 'auto';
+    joystickZone.style.bottom = '30px';
+}
+
+function initMobileControls() {
+    if (!mobileControlsContainer) return;
+    mobileControlsContainer.classList.add('mobile-controls-left');
+    resetJoystickPosition();
+    updateMobileControlSide(window.innerWidth / 4);
+}
 
 if (localStorage.getItem('neonAlias')) {
     aliasInput.value = localStorage.getItem('neonAlias');
 }
+
+initMobileControls();
 
 function resizeCanvas() {
     canvas.width  = window.innerWidth;
@@ -148,16 +203,6 @@ joystickZone.addEventListener('touchstart', (e) => {
     updateJoystick(touch.clientX, touch.clientY);
 }, { passive: false });
 
-joystickZone.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    for (const touch of e.changedTouches) {
-        if (touch.identifier === joystickTouchId) {
-            updateJoystick(touch.clientX, touch.clientY);
-            break;
-        }
-    }
-}, { passive: false });
-
 joystickZone.addEventListener('touchend', (e) => {
     for (const touch of e.changedTouches) {
         if (touch.identifier === joystickTouchId) {
@@ -170,6 +215,16 @@ joystickZone.addEventListener('touchend', (e) => {
         }
     }
 }, { passive: true });
+
+joystickZone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (const touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            updateJoystick(touch.clientX, touch.clientY);
+            break;
+        }
+    }
+}, { passive: false });
 
 joystickZone.addEventListener('touchcancel', () => {
     joystickActive  = false;
@@ -203,11 +258,21 @@ function updateJoystick(cx, cy) {
 
 // Touchmove general: solo actualiza mouse en pantallas NO móviles / dedos fuera del joystick
 window.addEventListener('touchmove', (e) => {
-    // Si hay joystick activo, no sobreescribir el ángulo con el touch general
     for (const touch of e.touches) {
         if (joystickActive && touch.identifier === joystickTouchId) continue;
         mouseX = touch.clientX;
         mouseY = touch.clientY;
+        break;
+    }
+}, { passive: true });
+
+window.addEventListener('touchstart', (e) => {
+    if (!isMobileDevice) return;
+
+    for (const touch of e.changedTouches) {
+        if (isTouchOnControl(touch)) continue;
+        setJoystickPositionAt(touch.clientX, touch.clientY);
+        updateMobileControlSide(touch.clientX);
         break;
     }
 }, { passive: true });
