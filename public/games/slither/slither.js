@@ -45,9 +45,12 @@ let joystickActive    = false;
 let joystickTouchId   = null;
 let joystickBaseX     = 0;    // centro del base en pantalla
 let joystickBaseY     = 0;
-const JOYSTICK_RADIUS = 60;   // radio del base (en px)
-const STICK_LIMIT     = 37;   // máx. desplazamiento del stick
-let joystickAngle     = null; // null → usa mouseX/mouseY
+const JOYSTICK_RADIUS = 60;
+const STICK_LIMIT     = 37;
+const JOYSTICK_DEAD   = 12;
+let joystickAngle     = null;
+let joystickTurnPower = 1;
+let lastJoystickAngle = 0;
 
 if (localStorage.getItem('neonAlias')) {
     aliasInput.value = localStorage.getItem('neonAlias');
@@ -161,6 +164,7 @@ joystickZone.addEventListener('touchend', (e) => {
             joystickActive  = false;
             joystickTouchId = null;
             joystickAngle   = null;
+            joystickTurnPower = 1;
             joystickStick.style.transform = 'translate(0px, 0px)';
             break;
         }
@@ -171,6 +175,7 @@ joystickZone.addEventListener('touchcancel', () => {
     joystickActive  = false;
     joystickTouchId = null;
     joystickAngle   = null;
+    joystickTurnPower = 1;
     joystickStick.style.transform = 'translate(0px, 0px)';
 }, { passive: true });
 
@@ -178,9 +183,19 @@ function updateJoystick(cx, cy) {
     const dx = cx - joystickBaseX;
     const dy = cy - joystickBaseY;
     const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < JOYSTICK_DEAD) {
+        joystickAngle = lastJoystickAngle;
+        joystickTurnPower = 0.35;
+        joystickStick.style.transform = 'translate(0px, 0px)';
+        return;
+    }
+
     const clampedDist = Math.min(dist, STICK_LIMIT);
     const angle = Math.atan2(dy, dx);
-    joystickAngle = angle; // guardar ángulo para sendDirection
+    joystickAngle = angle;
+    lastJoystickAngle = angle;
+    joystickTurnPower = 0.35 + 0.65 * (clampedDist / STICK_LIMIT);
     const sx = Math.cos(angle) * clampedDist;
     const sy = Math.sin(angle) * clampedDist;
     joystickStick.style.transform = `translate(${sx}px, ${sy}px)`;
@@ -216,7 +231,11 @@ function sendDirection() {
         if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
         targetAngle = Math.atan2(dy, dx);
     }
-    socket.emit('updateInput', { targetAngle, boosting: isBoosting });
+    socket.emit('updateInput', {
+        targetAngle,
+        boosting: isBoosting,
+        turnPower: joystickActive ? joystickTurnPower : 1
+    });
 }
 
 // ─── Recepción de ticks del servidor ─────────────────────────────────────────
@@ -401,13 +420,20 @@ function renderLoop() {
         }
 
         // Radio visual del imán (en coordenadas de mundo)
-        const MAGNET_VIS_RADIUS = 80;
+        const MAGNET_VIS_RADIUS = 105;
+        const MOUTH_VIS_OFFSET = 18;
 
         // Cabeza de mi serpiente en coordenadas de mundo (para calcular atracción visual)
         let myHeadX = null, myHeadY = null;
         if (gameState.me && nextState && nextState.me) {
             myHeadX = lerp(prevState && prevState.me ? prevState.me.x : nextState.me.x, nextState.me.x, alpha);
             myHeadY = lerp(prevState && prevState.me ? prevState.me.y : nextState.me.y, nextState.me.y, alpha);
+            const prevSnake = prevState && prevState.snakes && prevState.snakes.find(s => s.id === mySnakeId);
+            const nextSnake = nextState.snakes && nextState.snakes.find(s => s.id === mySnakeId);
+            let headAngle = nextSnake ? nextSnake.angle : 0;
+            if (prevSnake && nextSnake) headAngle = lerp(prevSnake.angle, nextSnake.angle, alpha);
+            myHeadX += Math.cos(headAngle) * MOUTH_VIS_OFFSET;
+            myHeadY += Math.sin(headAngle) * MOUTH_VIS_OFFSET;
         }
 
         gameState.pellets.forEach(p => {

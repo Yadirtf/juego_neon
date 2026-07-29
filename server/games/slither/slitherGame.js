@@ -255,43 +255,66 @@ function setupSlitherGame(io) {
         }
     }
 
-    // ── Imán de pellets: atrae orbes cercanos hacia la cabeza de la serpiente ──
-    const MAGNET_RADIUS  = 80;   // distancia máxima en px en la que el imán actúa
-    const MAGNET_FORCE   = 0.18; // fracción de la distancia que se acorta por tick
-    const MAGNET_EAT_DIST = 18;  // si el pellet llega a esta distancia, se come automáticamente
+    // ── Imán de pellets: vacío hacia la boca (frente de la cabeza) ──
+    const MAGNET_RADIUS     = 105;
+    const MAGNET_FORCE      = 0.32;
+    const MAGNET_EAT_DIST   = 26;
+    const MOUTH_OFFSET      = 18;
+    const MAGNET_SIDE_GRACE = 52;
+
+    function normalizeAngleDiff(diff) {
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        return diff;
+    }
+
+    function getMouthPoint(snake) {
+        return {
+            x: snake.x + Math.cos(snake.angle) * MOUTH_OFFSET,
+            y: snake.y + Math.sin(snake.angle) * MOUTH_OFFSET
+        };
+    }
+
+    function tryEatPellet(snake, room, pId, p) {
+        snake.score += p.value;
+        room.pellets.delete(pId);
+    }
 
     function updateSnakePosition(snake, room) {
         if (!snake.alive) return;
 
-        // ── Inercia angular (momentum de giro) ────────────────────────────────
-        // Calculamos cuánto queremos girar este tick (diff normalizado).
-        let diff = snake.targetAngle - snake.angle;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        while (diff > Math.PI)  diff -= Math.PI * 2;
+        // ── Giro: jugadores ágiles; bots con inercia suave ────────────────────
+        let diff = normalizeAngleDiff(snake.targetAngle - snake.angle);
+        const turnPower = typeof snake.turnPower === 'number'
+            ? Math.max(0.25, Math.min(1, snake.turnPower))
+            : 1;
 
-        // Velocidad máxima de giro por tick
-        const MAX_TURN = 0.12;
-        const desiredTurn = Math.max(-MAX_TURN, Math.min(MAX_TURN, diff));
-
-        // La velocidad angular se acelera hacia el giro deseado (aceleración)
-        // y se frena suavemente cuando no se aplica input (inercia natural).
-        const ANGULAR_ACCEL  = 0.025;  // qué tan rápido gana velocidad de giro
-        const ANGULAR_DECAY  = 0.82;   // factor de decaimiento cuando el input es neutro (< pequeño umbral)
-
-        if (!snake.angularVelocity) snake.angularVelocity = 0;
-
-        // Si el jugador está pidiendo girar, acumular velocidad angular
-        if (Math.abs(diff) > 0.01) {
-            snake.angularVelocity += (desiredTurn - snake.angularVelocity) * ANGULAR_ACCEL;
-            // Clampar para no superar el límite máximo
-            snake.angularVelocity = Math.max(-MAX_TURN, Math.min(MAX_TURN, snake.angularVelocity));
+        if (!snake.isBot) {
+            const MAX_TURN_PLAYER = 0.19 * turnPower;
+            if (Math.abs(diff) > 0.003) {
+                // Respuesta directa pero amortiguada: sigue el joystick sin sensación “pegada”
+                const step = diff * (0.55 + 0.35 * turnPower);
+                snake.angle += Math.max(-MAX_TURN_PLAYER, Math.min(MAX_TURN_PLAYER, step));
+            }
+            snake.angularVelocity = 0;
         } else {
-            // Sin input → decaer suavemente la velocidad angular (inercia)
-            snake.angularVelocity *= ANGULAR_DECAY;
-            if (Math.abs(snake.angularVelocity) < 0.001) snake.angularVelocity = 0;
-        }
+            const MAX_TURN = 0.12;
+            const desiredTurn = Math.max(-MAX_TURN, Math.min(MAX_TURN, diff));
+            const ANGULAR_ACCEL = 0.025;
+            const ANGULAR_DECAY = 0.82;
 
-        snake.angle += snake.angularVelocity;
+            if (!snake.angularVelocity) snake.angularVelocity = 0;
+
+            if (Math.abs(diff) > 0.01) {
+                snake.angularVelocity += (desiredTurn - snake.angularVelocity) * ANGULAR_ACCEL;
+                snake.angularVelocity = Math.max(-MAX_TURN, Math.min(MAX_TURN, snake.angularVelocity));
+            } else {
+                snake.angularVelocity *= ANGULAR_DECAY;
+                if (Math.abs(snake.angularVelocity) < 0.001) snake.angularVelocity = 0;
+            }
+
+            snake.angle += snake.angularVelocity;
+        }
 
         const MIN_SCORE = 100;
         const isBoosting = snake.boosting && snake.score > MIN_SCORE;
@@ -395,26 +418,40 @@ function setupSlitherGame(io) {
             snake.history.length = maxHistoryLength;
         }
 
-        // ── Imán de pellets + colisión ────────────────────────────────────────
+        // ── Imán hacia la boca + colisión generosa al pasar cerca ───────────────
+        const mouth = getMouthPoint(snake);
+
         for (const [pId, p] of room.pellets.entries()) {
-            const dist = Math.hypot(p.x - snake.x, p.y - snake.y);
+            const distHead = Math.hypot(p.x - snake.x, p.y - snake.y);
+            const distMouth = Math.hypot(p.x - mouth.x, p.y - mouth.y);
+            const eatRadius = p.radius + 15;
 
-            if (dist < p.radius + 12) {
-                // Comer: el orbe está directamente tocando la cabeza
-                snake.score += p.value;
-                room.pellets.delete(pId);
-            } else if (dist < MAGNET_RADIUS) {
-                // Imán: mover el orbe hacia la cabeza de forma proporcional a la distancia
-                const strength = MAGNET_FORCE * (1 - dist / MAGNET_RADIUS); // más fuerte cuanto más cerca
-                p.x += (snake.x - p.x) * strength;
-                p.y += (snake.y - p.y) * strength;
+            if (distHead < eatRadius || distMouth < MAGNET_EAT_DIST) {
+                tryEatPellet(snake, room, pId, p);
+                continue;
+            }
 
-                // Si el imán lo acercó suficiente, comerlo
-                const newDist = Math.hypot(p.x - snake.x, p.y - snake.y);
-                if (newDist < MAGNET_EAT_DIST) {
-                    snake.score += p.value;
-                    room.pellets.delete(pId);
-                }
+            if (distHead >= MAGNET_RADIUS) continue;
+
+            const angleToPellet = Math.atan2(p.y - snake.y, p.x - snake.x);
+            const frontalDiff = Math.abs(normalizeAngleDiff(angleToPellet - snake.angle));
+            const inFrontCone = frontalDiff < Math.PI * 0.52;
+            const inGraceBand = distHead < MAGNET_SIDE_GRACE;
+
+            if (!inFrontCone && !inGraceBand) continue;
+
+            const proximity = 1 - distHead / MAGNET_RADIUS;
+            let strength = MAGNET_FORCE * (0.4 + 0.6 * proximity * proximity);
+            if (distHead < 50) strength = Math.max(strength, 0.48);
+            if (inGraceBand && !inFrontCone) strength *= 0.65;
+
+            p.x += (mouth.x - p.x) * strength;
+            p.y += (mouth.y - p.y) * strength;
+
+            const afterHead = Math.hypot(p.x - snake.x, p.y - snake.y);
+            const afterMouth = Math.hypot(p.x - mouth.x, p.y - mouth.y);
+            if (afterHead < eatRadius || afterMouth < MAGNET_EAT_DIST || afterHead < MAGNET_SIDE_GRACE * 0.85) {
+                tryEatPellet(snake, room, pId, p);
             }
         }
     }
@@ -607,12 +644,13 @@ function setupSlitherGame(io) {
             }
         });
 
-        socket.on('updateInput', ({ targetAngle, boosting }) => {
+        socket.on('updateInput', ({ targetAngle, boosting, turnPower }) => {
             if (!socket.currentRoom) return;
             const snake = socket.currentRoom.players.get(socket.id);
             if (snake && snake.alive) {
                 if (typeof targetAngle === 'number') snake.targetAngle = targetAngle;
                 if (typeof boosting === 'boolean') snake.boosting = boosting;
+                if (typeof turnPower === 'number') snake.turnPower = turnPower;
             }
         });
 
