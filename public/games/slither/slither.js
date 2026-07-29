@@ -40,20 +40,20 @@ const joystickZone        = document.getElementById('joystickZone');
 const joystickStick       = document.getElementById('joystickStick');
 const mobileControlsContainer = document.getElementById('mobileControlsContainer');
 const boostBarFill        = document.getElementById('boostBarFill');
-const collectFeedback     = document.getElementById('collectFeedback');
+const collectTotal        = document.getElementById('collectTotal');
 
 let collectFeedbackTimeout = null;
+let totalCollected = 0;
 
-function showCollectFeedback(value, isRemain) {
-    if (!collectFeedback) return;
-    const label = isRemain ? `+${value} RESTO` : `+${value} PUNTO`;
-    collectFeedback.textContent = label;
-    collectFeedback.classList.add('visible');
-    collectFeedback.classList.toggle('remain', isRemain);
+function showCollectFeedback(value) {
+    if (!collectTotal) return;
+    totalCollected += value;
+    collectTotal.textContent = `COLECTADO: ${totalCollected}`;
+    collectTotal.classList.add('flash');
 
     if (collectFeedbackTimeout) clearTimeout(collectFeedbackTimeout);
     collectFeedbackTimeout = setTimeout(() => {
-        collectFeedback.classList.remove('visible');
+        collectTotal.classList.remove('flash');
     }, 900);
 }
 
@@ -115,10 +115,15 @@ function resetJoystickPosition() {
 }
 
 function initMobileControls() {
-    if (!mobileControlsContainer) return;
+    if (!mobileControlsContainer || !joystickZone) return;
     mobileControlsContainer.classList.add('mobile-controls-left');
+    mobileControlsContainer.classList.remove('mobile-controls-right');
     resetJoystickPosition();
-    updateMobileControlSide(window.innerWidth / 4);
+    joystickZone.style.left = '30px';
+    joystickZone.style.right = 'auto';
+    joystickZone.style.top = 'auto';
+    joystickZone.style.bottom = '30px';
+    updateMobileControlSide(0);
 }
 
 if (localStorage.getItem('neonAlias')) {
@@ -143,7 +148,13 @@ function getAlias() {
 playMultiBtn.addEventListener('click', () => startGame('multiplayer'));
 playSoloBtn.addEventListener('click',  () => startGame('solo'));
 
+function resetCollectHUD() {
+    totalCollected = 0;
+    if (collectTotal) collectTotal.textContent = 'COLECTADO: 0';
+}
+
 function startGame(mode) {
+    resetCollectHUD();
     currentMode = mode;
     const alias = getAlias();
 
@@ -154,11 +165,13 @@ function startGame(mode) {
             gameHud.style.display    = 'block';
             gameOverOverlay.classList.add('hidden');
             modeVal.innerText = mode === 'solo' ? 'SOLITARIO (BOTS)' : 'MULTIJUGADOR';
+            initMobileControls();
         }
     });
 }
 
 respawnBtn.addEventListener('click', () => {
+    resetCollectHUD();
     const alias = getAlias();
     socket.emit('respawn', { alias }, (res) => {
         if (res && res.success) {
@@ -368,8 +381,8 @@ socket.on('tickState', (data) => {
     }
 });
 
-socket.on('pelletCollected', ({ value, isRemain }) => {
-    showCollectFeedback(value, isRemain);
+socket.on('pelletCollected', ({ value }) => {
+    showCollectFeedback(value);
 });
 
 socket.on('gameOver', ({ finalScore }) => {
