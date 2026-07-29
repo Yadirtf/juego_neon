@@ -1,6 +1,7 @@
 const WORLD_SIZE = 3000;
 const MAX_PLAYERS_PER_ROOM = 25;
 const INITIAL_PELLETS = 400;
+const SPAWN_SHIELD_MS = 2500;
 const BOT_NAMES = ['CyberViper', 'NeonCobalt', 'ByteCobra', 'QuantumSnake', 'PulsePython', 'GlitchHydra', 'HyperAnacondo', 'ZeroViper', 'PixelBoa', 'SyntaxApex'];
 const NEON_COLORS = ['#00ffff', '#ff00ff', '#39ff14', '#ffd700', '#ff0055', '#bf00ff', '#00ffaa', '#ffaa00'];
 
@@ -25,9 +26,62 @@ function setupSlitherGame(io) {
         };
     }
 
-    function createSnake(id, name, isBot = false) {
-        const x = Math.floor(Math.random() * (WORLD_SIZE - 400)) + 200;
-        const y = Math.floor(Math.random() * (WORLD_SIZE - 400)) + 200;
+    function findPlayerSpawnPoint(room) {
+        const others = [...room.players.values(), ...room.bots.values()].filter(s => s.alive);
+        for (let attempt = 0; attempt < 30; attempt++) {
+            const x = Math.floor(Math.random() * (WORLD_SIZE - 400)) + 200;
+            const y = Math.floor(Math.random() * (WORLD_SIZE - 400)) + 200;
+            let clear = true;
+            for (const s of others) {
+                if (Math.hypot(s.x - x, s.y - y) < 200) {
+                    clear = false;
+                    break;
+                }
+                for (let i = 0; i < s.body.length; i += 2) {
+                    const seg = s.body[i];
+                    if (Math.hypot(seg.x - x, seg.y - y) < 130) {
+                        clear = false;
+                        break;
+                    }
+                }
+                if (!clear) break;
+            }
+            if (clear) return { x, y };
+        }
+        return {
+            x: Math.floor(Math.random() * (WORLD_SIZE - 400)) + 200,
+            y: Math.floor(Math.random() * (WORLD_SIZE - 400)) + 200
+        };
+    }
+
+    function getSpawnShieldRatio(snake) {
+        if (snake.isBot || !snake.spawnShieldUntil) return 0;
+        return Math.max(0, Math.min(1, (snake.spawnShieldUntil - Date.now()) / SPAWN_SHIELD_MS));
+    }
+
+    function hasSpawnShield(snake) {
+        return getSpawnShieldRatio(snake) > 0;
+    }
+
+    function serializeSnake(s) {
+        const shield = getSpawnShieldRatio(s);
+        return {
+            id: s.id,
+            name: s.name,
+            x: Math.round(s.x),
+            y: Math.round(s.y),
+            angle: s.angle,
+            color: s.color,
+            score: Math.floor(s.score),
+            body: s.body.map(pt => ({ x: Math.round(pt.x), y: Math.round(pt.y) })),
+            shield: shield > 0.02 ? Math.round(shield * 100) / 100 : 0
+        };
+    }
+
+    function createSnake(id, name, isBot = false, room = null) {
+        const spawn = !isBot && room ? findPlayerSpawnPoint(room) : null;
+        const x = spawn ? spawn.x : Math.floor(Math.random() * (WORLD_SIZE - 400)) + 200;
+        const y = spawn ? spawn.y : Math.floor(Math.random() * (WORLD_SIZE - 400)) + 200;
         const angle = Math.random() * Math.PI * 2;
         const initialLength = 10;
         const body = [];
@@ -59,7 +113,9 @@ function setupSlitherGame(io) {
             body,
             history,
             alive: true,
-            botTimer: 0
+            botTimer: 0,
+            spawnShieldUntil: isBot ? 0 : Date.now() + SPAWN_SHIELD_MS,
+            gameOverSent: false
         };
     }
 
@@ -467,6 +523,9 @@ function setupSlitherGame(io) {
                 // La serpiente solo muere si choca contra el cuerpo de OTRA serpiente.
                 if (other.id === snake.id) continue;
 
+                // Escudo de aparición: nadie muere ni mata hasta que termine (ambos lados)
+                if (hasSpawnShield(snake) || hasSpawnShield(other)) continue;
+
                 for (let i = 0; i < other.body.length; i += 2) {
                     const seg = other.body[i];
                     const dist = Math.hypot(seg.x - snake.x, seg.y - snake.y);
@@ -543,16 +602,7 @@ function setupSlitherGame(io) {
 
                     const specSnakes = allSnakes
                         .filter(s => s.alive && Math.abs(s.x - specX) < VIEW_MARGIN && Math.abs(s.y - specY) < VIEW_MARGIN)
-                        .map(s => ({
-                            id: s.id,
-                            name: s.name,
-                            x: Math.round(s.x),
-                            y: Math.round(s.y),
-                            angle: s.angle,
-                            color: s.color,
-                            score: Math.floor(s.score),
-                            body: s.body.map(pt => ({ x: Math.round(pt.x), y: Math.round(pt.y) }))
-                        }));
+                        .map(s => serializeSnake(s));
 
                     const specPellets = [];
                     for (const p of room.pellets.values()) {
@@ -577,16 +627,7 @@ function setupSlitherGame(io) {
                 const VIEW_MARGIN = 800;
                 const visibleSnakes = allSnakes
                     .filter(s => s.alive && Math.abs(s.x - playerSnake.x) < VIEW_MARGIN && Math.abs(s.y - playerSnake.y) < VIEW_MARGIN)
-                    .map(s => ({
-                        id: s.id,
-                        name: s.name,
-                        x: Math.round(s.x),
-                        y: Math.round(s.y),
-                        angle: s.angle,
-                        color: s.color,
-                        score: Math.floor(s.score),
-                        body: s.body.map(pt => ({ x: Math.round(pt.x), y: Math.round(pt.y) }))
-                    }));
+                    .map(s => serializeSnake(s));
 
                 const visiblePellets = [];
                 for (const p of room.pellets.values()) {
@@ -595,12 +636,14 @@ function setupSlitherGame(io) {
                     }
                 }
 
+                const playerShield = getSpawnShieldRatio(playerSnake);
                 clientSocket.emit('tickState', {
                     me: {
                         id: playerSnake.id,
                         x: Math.round(playerSnake.x),
                         y: Math.round(playerSnake.y),
-                        score: Math.floor(playerSnake.score)
+                        score: Math.floor(playerSnake.score),
+                        shield: playerShield > 0.02 ? Math.round(playerShield * 100) / 100 : 0
                     },
                     snakes: visibleSnakes,
                     pellets: visiblePellets,
@@ -634,7 +677,7 @@ function setupSlitherGame(io) {
                 room = getOrCreateMultiplayerRoom();
             }
 
-            const snake = createSnake(socket.id, finalAlias, false);
+            const snake = createSnake(socket.id, finalAlias, false, room);
             room.players.set(socket.id, snake);
             socket.join(room.id);
             socket.currentRoom = room;
@@ -657,7 +700,7 @@ function setupSlitherGame(io) {
         socket.on('respawn', ({ alias }, callback) => {
             if (!socket.currentRoom) return;
             const finalAlias = (alias || 'Serpiente').trim().slice(0, 12);
-            const snake = createSnake(socket.id, finalAlias, false);
+            const snake = createSnake(socket.id, finalAlias, false, socket.currentRoom);
             socket.currentRoom.players.set(socket.id, snake);
             if (typeof callback === 'function') callback({ success: true });
         });

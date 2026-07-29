@@ -340,8 +340,116 @@ function interpolateSnakes(prevSnakes, nextSnakes, alpha) {
             });
         }
 
-        return { ...next, x: ix, y: iy, body: iBody };
+        return { ...next, x: ix, y: iy, body: iBody, shield: lerp(prev.shield || 0, next.shield || 0, alpha) };
     });
+}
+
+function getSnakeBodyWidth(score) {
+    return Math.min(32, 18 + score / 100);
+}
+
+/** Agujero en el suelo en la cola: el cuerpo parece salir de ahí (estilo Snake.io) */
+function drawTailPortal(ctx, snake, offsetX, offsetY) {
+    if (!snake.body || snake.body.length < 2) return;
+
+    const tail = snake.body[snake.body.length - 1];
+    const before = snake.body[snake.body.length - 2];
+    const tx = tail.x + offsetX;
+    const ty = tail.y + offsetY;
+    const ang = Math.atan2(tail.y - before.y, tail.x - before.x);
+    const w = getSnakeBodyWidth(snake.score);
+    const holeRx = w * 0.54;
+    const holeRy = w * 0.46;
+
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(ang);
+
+    const pit = ctx.createRadialGradient(0, 0, 0, 0, 0, holeRx * 1.2);
+    pit.addColorStop(0, '#000000');
+    pit.addColorStop(0.55, '#020308');
+    pit.addColorStop(0.88, '#0a0d18');
+    pit.addColorStop(1, 'rgba(12, 16, 28, 0.95)');
+    ctx.fillStyle = pit;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, holeRx, holeRy, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.92)';
+    ctx.lineWidth = Math.max(2.5, w * 0.1);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, holeRx * 0.96, holeRy * 0.92, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = snake.color;
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, holeRx * 1.05, holeRy * 1.02, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+/** Brillo en cola mientras dura el escudo de aparición */
+function drawSpawnShieldTail(ctx, snake, offsetX, offsetY) {
+    const shield = snake.shield;
+    if (!shield || shield <= 0.02 || !snake.body || snake.body.length < 2) return;
+
+    const w = getSnakeBodyWidth(snake.score);
+    const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 110);
+    const tailStart = Math.max(0, Math.floor(snake.body.length * 0.45));
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = w + 6 * shield * pulse;
+    ctx.globalAlpha = shield * (0.42 + 0.28 * pulse);
+    ctx.shadowBlur = 22 * shield;
+    ctx.shadowColor = '#ffffff';
+
+    const hueShift = (performance.now() / 40) % 360;
+    const grad = ctx.createLinearGradient(
+        snake.x + offsetX, snake.y + offsetY,
+        snake.body[snake.body.length - 1].x + offsetX,
+        snake.body[snake.body.length - 1].y + offsetY
+    );
+    grad.addColorStop(0, `hsla(${hueShift}, 100%, 75%, 0.15)`);
+    grad.addColorStop(0.35, `hsla(${(hueShift + 80) % 360}, 100%, 80%, 0.85)`);
+    grad.addColorStop(0.7, `hsla(${(hueShift + 160) % 360}, 100%, 85%, 1)`);
+    grad.addColorStop(1, '#ffffff');
+    ctx.strokeStyle = grad;
+
+    ctx.beginPath();
+    ctx.moveTo(snake.body[tailStart].x + offsetX, snake.body[tailStart].y + offsetY);
+    for (let i = tailStart + 1; i < snake.body.length; i++) {
+        ctx.lineTo(snake.body[i].x + offsetX, snake.body[i].y + offsetY);
+    }
+    const tail = snake.body[snake.body.length - 1];
+    ctx.lineTo(tail.x + offsetX, tail.y + offsetY);
+    ctx.stroke();
+    ctx.restore();
+}
+
+/** Tapa la punta de la cola para que desaparezca dentro del agujero */
+function maskTailIntoPortal(ctx, snake, offsetX, offsetY) {
+    if (!snake.body || snake.body.length < 2) return;
+
+    const tail = snake.body[snake.body.length - 1];
+    const before = snake.body[snake.body.length - 2];
+    const ang = Math.atan2(tail.y - before.y, tail.x - before.x);
+    const w = getSnakeBodyWidth(snake.score);
+    const tx = tail.x + offsetX;
+    const ty = tail.y + offsetY;
+
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#020308';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 0.5, w * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
 }
 
 // ─── Bucle de Renderizado (60 FPS) ───────────────────────────────────────────
@@ -485,13 +593,17 @@ function renderLoop() {
 
     if (snakesToRender) {
         snakesToRender.forEach(snake => {
+            drawTailPortal(ctx, snake, offsetX, offsetY);
+        });
+
+        snakesToRender.forEach(snake => {
             const isMe = snake.id === mySnakeId;
 
             // Cuerpo
             if (snake.body && snake.body.length > 0) {
                 ctx.save();
                 ctx.strokeStyle = snake.color;
-                ctx.lineWidth   = Math.min(32, 18 + snake.score / 100);
+                ctx.lineWidth   = getSnakeBodyWidth(snake.score);
                 ctx.lineCap     = 'round';
                 ctx.lineJoin    = 'round';
                 ctx.shadowBlur  = isMe ? 18 : 10;
@@ -505,6 +617,9 @@ function renderLoop() {
                 ctx.stroke();
                 ctx.restore();
             }
+
+            drawSpawnShieldTail(ctx, snake, offsetX, offsetY);
+            maskTailIntoPortal(ctx, snake, offsetX, offsetY);
 
             // Cabeza (con ojos)
             const hx = snake.x + offsetX;
