@@ -50,6 +50,7 @@ function setupSlitherGame(io) {
             y,
             angle,
             targetAngle: angle,
+            angularVelocity: 0,  // inercia de giro (momentum angular)
             speed: 4.8,
             boosting: false,
             score: 100,
@@ -254,16 +255,43 @@ function setupSlitherGame(io) {
         }
     }
 
+    // ── Imán de pellets: atrae orbes cercanos hacia la cabeza de la serpiente ──
+    const MAGNET_RADIUS  = 80;   // distancia máxima en px en la que el imán actúa
+    const MAGNET_FORCE   = 0.18; // fracción de la distancia que se acorta por tick
+    const MAGNET_EAT_DIST = 18;  // si el pellet llega a esta distancia, se come automáticamente
+
     function updateSnakePosition(snake, room) {
         if (!snake.alive) return;
 
-        // Suavizar giro de dirección
+        // ── Inercia angular (momentum de giro) ────────────────────────────────
+        // Calculamos cuánto queremos girar este tick (diff normalizado).
         let diff = snake.targetAngle - snake.angle;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        
-        const turnSpeed = 0.12;
-        snake.angle += Math.max(-turnSpeed, Math.min(turnSpeed, diff));
+        while (diff > Math.PI)  diff -= Math.PI * 2;
+
+        // Velocidad máxima de giro por tick
+        const MAX_TURN = 0.12;
+        const desiredTurn = Math.max(-MAX_TURN, Math.min(MAX_TURN, diff));
+
+        // La velocidad angular se acelera hacia el giro deseado (aceleración)
+        // y se frena suavemente cuando no se aplica input (inercia natural).
+        const ANGULAR_ACCEL  = 0.025;  // qué tan rápido gana velocidad de giro
+        const ANGULAR_DECAY  = 0.82;   // factor de decaimiento cuando el input es neutro (< pequeño umbral)
+
+        if (!snake.angularVelocity) snake.angularVelocity = 0;
+
+        // Si el jugador está pidiendo girar, acumular velocidad angular
+        if (Math.abs(diff) > 0.01) {
+            snake.angularVelocity += (desiredTurn - snake.angularVelocity) * ANGULAR_ACCEL;
+            // Clampar para no superar el límite máximo
+            snake.angularVelocity = Math.max(-MAX_TURN, Math.min(MAX_TURN, snake.angularVelocity));
+        } else {
+            // Sin input → decaer suavemente la velocidad angular (inercia)
+            snake.angularVelocity *= ANGULAR_DECAY;
+            if (Math.abs(snake.angularVelocity) < 0.001) snake.angularVelocity = 0;
+        }
+
+        snake.angle += snake.angularVelocity;
 
         const MIN_SCORE = 100;
         const isBoosting = snake.boosting && snake.score > MIN_SCORE;
@@ -367,12 +395,26 @@ function setupSlitherGame(io) {
             snake.history.length = maxHistoryLength;
         }
 
-        // Colisión con Pellets
+        // ── Imán de pellets + colisión ────────────────────────────────────────
         for (const [pId, p] of room.pellets.entries()) {
             const dist = Math.hypot(p.x - snake.x, p.y - snake.y);
+
             if (dist < p.radius + 12) {
+                // Comer: el orbe está directamente tocando la cabeza
                 snake.score += p.value;
                 room.pellets.delete(pId);
+            } else if (dist < MAGNET_RADIUS) {
+                // Imán: mover el orbe hacia la cabeza de forma proporcional a la distancia
+                const strength = MAGNET_FORCE * (1 - dist / MAGNET_RADIUS); // más fuerte cuanto más cerca
+                p.x += (snake.x - p.x) * strength;
+                p.y += (snake.y - p.y) * strength;
+
+                // Si el imán lo acercó suficiente, comerlo
+                const newDist = Math.hypot(p.x - snake.x, p.y - snake.y);
+                if (newDist < MAGNET_EAT_DIST) {
+                    snake.score += p.value;
+                    room.pellets.delete(pId);
+                }
             }
         }
     }

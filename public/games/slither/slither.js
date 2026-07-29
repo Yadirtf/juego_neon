@@ -220,7 +220,17 @@ function sendDirection() {
 }
 
 // ─── Recepción de ticks del servidor ─────────────────────────────────────────
+// Mapa para interpolar posiciones de pellets atraídos por el imán
+const pelletPrevPos = new Map(); // pelletId → { x, y }
+
 socket.on('tickState', (data) => {
+    // Antes de actualizar, guardar posiciones previas de pellets para interpolación
+    if (nextState && nextState.pellets) {
+        for (const p of nextState.pellets) {
+            pelletPrevPos.set(p.id, { x: p.x, y: p.y });
+        }
+    }
+
     prevState    = nextState || data;
     nextState    = data;
     lastTickTime = performance.now();
@@ -382,18 +392,59 @@ function renderLoop() {
     ctx.strokeRect(offsetX, offsetY, gameState.worldSize, gameState.worldSize);
     ctx.restore();
 
-    // ── Pellets (Orbes Neón) ─────────────────────────────────────────────────
+    // ── Pellets (Orbes Neón) con efecto imán ─────────────────────────────────
     if (gameState.pellets) {
+        // Construir mapa de pellets del tick anterior para interpolación
+        const prevPelletMap = new Map();
+        if (prevState && prevState.pellets) {
+            for (const p of prevState.pellets) prevPelletMap.set(p.id, p);
+        }
+
+        // Radio visual del imán (en coordenadas de mundo)
+        const MAGNET_VIS_RADIUS = 80;
+
+        // Cabeza de mi serpiente en coordenadas de mundo (para calcular atracción visual)
+        let myHeadX = null, myHeadY = null;
+        if (gameState.me && nextState && nextState.me) {
+            myHeadX = lerp(prevState && prevState.me ? prevState.me.x : nextState.me.x, nextState.me.x, alpha);
+            myHeadY = lerp(prevState && prevState.me ? prevState.me.y : nextState.me.y, nextState.me.y, alpha);
+        }
+
         gameState.pellets.forEach(p => {
-            const px = p.x + offsetX;
-            const py = p.y + offsetY;
+            // Interpolar posición del pellet entre ticks si se está moviendo (atraído)
+            const prev = prevPelletMap.get(p.id);
+            let px, py;
+            if (prev && (Math.abs(p.x - prev.x) > 0.5 || Math.abs(p.y - prev.y) > 0.5)) {
+                // Pellet se está moviendo (posiblemente atraído) → interpolar suavemente
+                px = (lerp(prev.x, p.x, alpha) + offsetX);
+                py = (lerp(prev.y, p.y, alpha) + offsetY);
+            } else {
+                px = p.x + offsetX;
+                py = p.y + offsetY;
+            }
+
+            // Calcular si este pellet está siendo atraído (cerca de mi cabeza)
+            let magnetized = false;
+            if (myHeadX !== null) {
+                const distToHead = Math.hypot(p.x - myHeadX, p.y - myHeadY);
+                magnetized = distToHead < MAGNET_VIS_RADIUS;
+            }
 
             ctx.save();
             ctx.fillStyle   = p.color;
-            ctx.shadowBlur  = p.radius * 2;
-            ctx.shadowColor = p.color;
+
+            if (magnetized) {
+                // Efecto de brillo extra + estela para pellets atraídos
+                ctx.shadowBlur  = p.radius * 5;
+                ctx.shadowColor = p.color;
+                ctx.globalAlpha = 0.9;
+            } else {
+                ctx.shadowBlur  = p.radius * 2;
+                ctx.shadowColor = p.color;
+            }
+
             ctx.beginPath();
-            ctx.arc(px, py, p.radius, 0, Math.PI * 2);
+            ctx.arc(px, py, magnetized ? p.radius * 1.15 : p.radius, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
         });
