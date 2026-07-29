@@ -2,6 +2,7 @@ const WORLD_SIZE = 3000;
 const MAX_PLAYERS_PER_ROOM = 25;
 const INITIAL_PELLETS = 400;
 const SPAWN_SHIELD_MS = 2500;
+const REMAIN_HOLE_LINGER_MS = 850;
 const BOT_NAMES = ['CyberViper', 'NeonCobalt', 'ByteCobra', 'QuantumSnake', 'PulsePython', 'GlitchHydra', 'HyperAnacondo', 'ZeroViper', 'PixelBoa', 'SyntaxApex'];
 const NEON_COLORS = ['#00ffff', '#ff00ff', '#39ff14', '#ffd700', '#ff0055', '#bf00ff', '#00ffaa', '#ffaa00'];
 
@@ -74,8 +75,60 @@ function setupSlitherGame(io) {
             color: s.color,
             score: Math.floor(s.score),
             body: s.body.map(pt => ({ x: Math.round(pt.x), y: Math.round(pt.y) })),
-            shield: shield > 0.02 ? Math.round(shield * 100) / 100 : 0
+            shield: shield > 0.02 ? Math.round(shield * 100) / 100 : 0,
+            growthHole: serializeGrowthHole(s)
         };
+    }
+
+    function serializeGrowthHole(s) {
+        if (!s.growthHole) return null;
+        const fade = typeof s.growthHoleFade === 'number' ? s.growthHoleFade : 0;
+        return {
+            x: Math.round(s.growthHole.x),
+            y: Math.round(s.growthHole.y),
+            fade: Math.round(fade * 100) / 100
+        };
+    }
+
+    function registerRemainMeal(snake) {
+        snake.lastRemainEatAt = Date.now();
+        const tail = snake.body && snake.body[snake.body.length - 1];
+        if (!tail) return;
+        if (!snake.growthHole) {
+            snake.growthHole = { x: tail.x, y: tail.y };
+        }
+    }
+
+    function updateGrowthHole(snake) {
+        if (!snake.lastRemainEatAt) {
+            snake.growthHole = null;
+            snake.growthHoleFade = 0;
+            return;
+        }
+
+        const elapsed = Date.now() - snake.lastRemainEatAt;
+        if (elapsed > REMAIN_HOLE_LINGER_MS) {
+            snake.growthHole = null;
+            snake.growthHoleFade = 0;
+            snake.lastRemainEatAt = 0;
+            return;
+        }
+
+        const tail = snake.body && snake.body[snake.body.length - 1];
+        if (tail) {
+            if (!snake.growthHole) snake.growthHole = { x: tail.x, y: tail.y };
+            else {
+                snake.growthHole.x += (tail.x - snake.growthHole.x) * 0.32;
+                snake.growthHole.y += (tail.y - snake.growthHole.y) * 0.32;
+            }
+        }
+
+        const fadeStart = REMAIN_HOLE_LINGER_MS * 0.55;
+        if (elapsed > fadeStart) {
+            snake.growthHoleFade = (elapsed - fadeStart) / (REMAIN_HOLE_LINGER_MS - fadeStart);
+        } else {
+            snake.growthHoleFade = 0;
+        }
     }
 
     function createSnake(id, name, isBot = false, room = null) {
@@ -115,7 +168,10 @@ function setupSlitherGame(io) {
             alive: true,
             botTimer: 0,
             spawnShieldUntil: isBot ? 0 : Date.now() + SPAWN_SHIELD_MS,
-            gameOverSent: false
+            gameOverSent: false,
+            lastRemainEatAt: 0,
+            growthHole: null,
+            growthHoleFade: 0
         };
     }
 
@@ -175,6 +231,7 @@ function setupSlitherGame(io) {
             const p = createPellet(px, py, valuePerPellet);
             // Los restos toman el color neón de la serpiente muerta (como en el original)
             p.color = snake.color;
+            p.isRemain = true;
             room.pellets.set(p.id, p);
         }
     }
@@ -333,6 +390,7 @@ function setupSlitherGame(io) {
 
     function tryEatPellet(snake, room, pId, p) {
         snake.score += p.value;
+        if (p.isRemain) registerRemainMeal(snake);
         room.pellets.delete(pId);
     }
 
@@ -510,6 +568,8 @@ function setupSlitherGame(io) {
                 tryEatPellet(snake, room, pId, p);
             }
         }
+
+        updateGrowthHole(snake);
     }
 
     function checkSnakeCollisions(allSnakes, room) {

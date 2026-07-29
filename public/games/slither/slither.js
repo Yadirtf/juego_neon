@@ -340,7 +340,16 @@ function interpolateSnakes(prevSnakes, nextSnakes, alpha) {
             });
         }
 
-        return { ...next, x: ix, y: iy, body: iBody, shield: lerp(prev.shield || 0, next.shield || 0, alpha) };
+        let growthHole = next.growthHole || null;
+        if (prev.growthHole && next.growthHole) {
+            growthHole = {
+                x: lerp(prev.growthHole.x, next.growthHole.x, alpha),
+                y: lerp(prev.growthHole.y, next.growthHole.y, alpha),
+                fade: lerp(prev.growthHole.fade || 0, next.growthHole.fade || 0, alpha)
+            };
+        }
+
+        return { ...next, x: ix, y: iy, body: iBody, shield: lerp(prev.shield || 0, next.shield || 0, alpha), growthHole };
     });
 }
 
@@ -348,46 +357,161 @@ function getSnakeBodyWidth(score) {
     return Math.min(32, 18 + score / 100);
 }
 
-/** Agujero en el suelo en la cola: el cuerpo parece salir de ahí (estilo Snake.io) */
-function drawTailPortal(ctx, snake, offsetX, offsetY) {
-    if (!snake.body || snake.body.length < 2) return;
+function drawHexagonPath(ctx, cx, cy, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 6 + (i * Math.PI) / 3;
+        const x = cx + r * Math.cos(a);
+        const y = cy + r * Math.sin(a);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+}
 
-    const tail = snake.body[snake.body.length - 1];
-    const before = snake.body[snake.body.length - 2];
-    const tx = tail.x + offsetX;
-    const ty = tail.y + offsetY;
-    const ang = Math.atan2(tail.y - before.y, tail.x - before.x);
-    const w = getSnakeBodyWidth(snake.score);
-    const holeRx = w * 0.54;
-    const holeRy = w * 0.46;
+function drawArenaBackground(ctx, offsetX, offsetY, worldSize) {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const sky = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(canvas.width, canvas.height) * 0.85);
+    sky.addColorStop(0, '#9ef2ff');
+    sky.addColorStop(0.55, '#6fe3f8');
+    sky.addColorStop(1, '#45c4e8');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const arena = ctx.createLinearGradient(offsetX, offsetY, offsetX + worldSize, offsetY + worldSize);
+    arena.addColorStop(0, '#72dff5');
+    arena.addColorStop(0.5, '#8ae9ff');
+    arena.addColorStop(1, '#5ecfee');
+    ctx.fillStyle = arena;
+    ctx.fillRect(offsetX, offsetY, worldSize, worldSize);
+
+    const hexR = 38;
+    const hexW = Math.sqrt(3) * hexR;
+    const rowH = hexR * 1.5;
 
     ctx.save();
-    ctx.translate(tx, ty);
-    ctx.rotate(ang);
-
-    const pit = ctx.createRadialGradient(0, 0, 0, 0, 0, holeRx * 1.2);
-    pit.addColorStop(0, '#000000');
-    pit.addColorStop(0.55, '#020308');
-    pit.addColorStop(0.88, '#0a0d18');
-    pit.addColorStop(1, 'rgba(12, 16, 28, 0.95)');
-    ctx.fillStyle = pit;
     ctx.beginPath();
-    ctx.ellipse(0, 0, holeRx, holeRy, 0, 0, Math.PI * 2);
+    ctx.rect(offsetX, offsetY, worldSize, worldSize);
+    ctx.clip();
+
+    const colStart = Math.floor((-offsetX - hexW) / hexW) - 1;
+    const colEnd = colStart + Math.ceil((canvas.width + hexW * 2) / hexW) + 2;
+    const rowStart = Math.floor((-offsetY - rowH) / rowH) - 1;
+    const rowEnd = rowStart + Math.ceil((canvas.height + rowH * 2) / rowH) + 2;
+
+    for (let row = rowStart; row <= rowEnd; row++) {
+        for (let col = colStart; col <= colEnd; col++) {
+            const hx = offsetX + col * hexW + (row % 2 === 0 ? 0 : hexW / 2);
+            const hy = offsetY + row * rowH;
+            if (hx < offsetX - hexR || hx > offsetX + worldSize + hexR) continue;
+            if (hy < offsetY - hexR || hy > offsetY + worldSize + hexR) continue;
+
+            drawHexagonPath(ctx, hx, hy, hexR - 1.5);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.11)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
+            ctx.lineWidth = 1.15;
+            ctx.stroke();
+
+            drawHexagonPath(ctx, hx, hy, hexR * 0.55);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.fill();
+        }
+    }
+    ctx.restore();
+}
+
+function drawArenaGrowthHole(ctx, snake, offsetX, offsetY) {
+    const hole = snake.growthHole;
+    if (!hole) return;
+
+    const w = getSnakeBodyWidth(snake.score);
+    const radius = w * 0.58;
+    const fade = hole.fade || 0;
+    const alpha = 1 - fade * 0.85;
+    const hx = hole.x + offsetX;
+    const hy = hole.y + offsetY;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    ctx.fillStyle = 'rgba(20, 45, 58, 0.25)';
+    ctx.beginPath();
+    ctx.arc(hx, hy, radius * 1.35, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.92)';
-    ctx.lineWidth = Math.max(2.5, w * 0.1);
+    const pit = ctx.createRadialGradient(hx, hy, 0, hx, hy, radius * 1.25);
+    pit.addColorStop(0, '#0a1620');
+    pit.addColorStop(0.45, '#132a38');
+    pit.addColorStop(0.78, '#1e4456');
+    pit.addColorStop(1, 'rgba(94, 207, 238, 0.35)');
+    ctx.fillStyle = pit;
     ctx.beginPath();
-    ctx.ellipse(0, 0, holeRx * 0.96, holeRy * 0.92, 0, 0, Math.PI * 2);
+    ctx.arc(hx, hy, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.lineWidth = Math.max(2, w * 0.09);
+    ctx.beginPath();
+    ctx.arc(hx, hy, radius * 0.95, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.strokeStyle = snake.color;
-    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.ellipse(0, 0, holeRx * 1.05, holeRy * 1.02, 0, 0, Math.PI * 2);
+    ctx.arc(hx, hy, radius * 1.08, 0, Math.PI * 2);
     ctx.stroke();
 
+    ctx.restore();
+}
+
+function drawTailIntoArenaHole(ctx, snake, offsetX, offsetY) {
+    if (!snake.growthHole || !snake.body || snake.body.length < 2) return;
+
+    const hole = snake.growthHole;
+    const tail = snake.body[snake.body.length - 1];
+    const w = getSnakeBodyWidth(snake.score);
+    const hx = hole.x + offsetX;
+    const hy = hole.y + offsetY;
+    const tx = tail.x + offsetX;
+    const ty = tail.y + offsetY;
+    const fade = 1 - (hole.fade || 0) * 0.85;
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = snake.color;
+    ctx.lineWidth = w;
+    ctx.lineCap = 'round';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = snake.color;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function maskTailIntoArenaHole(ctx, snake, offsetX, offsetY) {
+    if (!snake.growthHole || !snake.body || snake.body.length < 1) return;
+
+    const hole = snake.growthHole;
+    const tail = snake.body[snake.body.length - 1];
+    const w = getSnakeBodyWidth(snake.score);
+    const hx = hole.x + offsetX;
+    const hy = hole.y + offsetY;
+    const tx = tail.x + offsetX;
+    const ty = tail.y + offsetY;
+
+    ctx.save();
+    const pit = ctx.createRadialGradient(hx, hy, 0, hx, hy, w * 0.55);
+    pit.addColorStop(0, '#0a1620');
+    pit.addColorStop(0.7, '#132a38');
+    pit.addColorStop(1, 'rgba(19, 42, 56, 0.95)');
+    ctx.fillStyle = pit;
+    ctx.beginPath();
+    ctx.arc(tx, ty, w * 0.52, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
 }
 
@@ -431,27 +555,6 @@ function drawSpawnShieldTail(ctx, snake, offsetX, offsetY) {
     ctx.restore();
 }
 
-/** Tapa la punta de la cola para que desaparezca dentro del agujero */
-function maskTailIntoPortal(ctx, snake, offsetX, offsetY) {
-    if (!snake.body || snake.body.length < 2) return;
-
-    const tail = snake.body[snake.body.length - 1];
-    const before = snake.body[snake.body.length - 2];
-    const ang = Math.atan2(tail.y - before.y, tail.x - before.x);
-    const w = getSnakeBodyWidth(snake.score);
-    const tx = tail.x + offsetX;
-    const ty = tail.y + offsetY;
-
-    ctx.save();
-    ctx.translate(tx, ty);
-    ctx.rotate(ang);
-    ctx.fillStyle = '#020308';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, w * 0.5, w * 0.42, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-}
-
 // ─── Bucle de Renderizado (60 FPS) ───────────────────────────────────────────
 function renderLoop() {
     requestAnimationFrame(renderLoop);
@@ -459,8 +562,8 @@ function renderLoop() {
     // Enviar dirección cada frame → latencia mínima de respuesta
     sendDirection();
 
-    // Fondo
-    ctx.fillStyle = '#04060f';
+    // Fondo exterior (fuera del mapa)
+    ctx.fillStyle = '#45c4e8';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Necesitamos al menos un tickState recibido para renderizar
@@ -492,30 +595,14 @@ function renderLoop() {
     const offsetX = canvas.width  / 2 - cameraX;
     const offsetY = canvas.height / 2 - cameraY;
 
-    // ── Rejilla de Fondo Neón ────────────────────────────────────────────────
-    ctx.save();
-    ctx.strokeStyle = 'rgba(57, 255, 20, 0.04)';
-    ctx.lineWidth = 1;
-    const gridSize = 60;
-    const startX = (offsetX % gridSize) - gridSize;
-    const startY = (offsetY % gridSize) - gridSize;
-
-    ctx.beginPath();
-    for (let x = startX; x < canvas.width + gridSize; x += gridSize) {
-        ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
-    }
-    for (let y = startY; y < canvas.height + gridSize; y += gridSize) {
-        ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
-    }
-    ctx.stroke();
-    ctx.restore();
+    drawArenaBackground(ctx, offsetX, offsetY, gameState.worldSize);
 
     // ── Límites del Mundo ────────────────────────────────────────────────────
     ctx.save();
-    ctx.strokeStyle = '#ff0055';
-    ctx.lineWidth   = 6;
-    ctx.shadowBlur  = 20;
-    ctx.shadowColor = '#ff0055';
+    ctx.strokeStyle = '#d94b4b';
+    ctx.lineWidth   = 5;
+    ctx.shadowBlur  = 12;
+    ctx.shadowColor = 'rgba(217, 75, 75, 0.45)';
     ctx.strokeRect(offsetX, offsetY, gameState.worldSize, gameState.worldSize);
     ctx.restore();
 
@@ -593,11 +680,13 @@ function renderLoop() {
 
     if (snakesToRender) {
         snakesToRender.forEach(snake => {
-            drawTailPortal(ctx, snake, offsetX, offsetY);
+            if (snake.growthHole) drawArenaGrowthHole(ctx, snake, offsetX, offsetY);
         });
 
         snakesToRender.forEach(snake => {
             const isMe = snake.id === mySnakeId;
+
+            if (snake.growthHole) drawTailIntoArenaHole(ctx, snake, offsetX, offsetY);
 
             // Cuerpo
             if (snake.body && snake.body.length > 0) {
@@ -619,7 +708,7 @@ function renderLoop() {
             }
 
             drawSpawnShieldTail(ctx, snake, offsetX, offsetY);
-            maskTailIntoPortal(ctx, snake, offsetX, offsetY);
+            if (snake.growthHole) maskTailIntoArenaHole(ctx, snake, offsetX, offsetY);
 
             // Cabeza (con ojos)
             const hx = snake.x + offsetX;
@@ -638,7 +727,7 @@ function renderLoop() {
             ctx.fill();
 
             // Ojos (escalados para cabeza más gruesa tipo Snake.io)
-            ctx.fillStyle = '#04060f';
+            ctx.fillStyle = '#1a2a35';
             ctx.shadowBlur = 0;
             ctx.beginPath();
             ctx.arc(5, -6, 3.5, 0, Math.PI * 2);
@@ -663,7 +752,7 @@ function renderLoop() {
 }
 
 function renderMinimap() {
-    miniCtx.fillStyle = '#04060f';
+    miniCtx.fillStyle = '#6fe3f8';
     miniCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
     if (!gameState || !gameState.snakes) return;
