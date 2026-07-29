@@ -6,6 +6,32 @@ const REMAIN_HOLE_LINGER_MS = 850;
 const BOT_NAMES = ['CyberViper', 'NeonCobalt', 'ByteCobra', 'QuantumSnake', 'PulsePython', 'GlitchHydra', 'HyperAnacondo', 'ZeroViper', 'PixelBoa', 'SyntaxApex'];
 const NEON_COLORS = ['#00ffff', '#ff00ff', '#39ff14', '#ffd700', '#ff0055', '#bf00ff', '#00ffaa', '#ffaa00'];
 
+function getRandomColor() {
+    return NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)];
+}
+
+const SNAKE_SKINS = [
+    { bodyPattern: 'solid', headShape: 'round' },
+    { bodyPattern: 'gradient', headShape: 'pointed' },
+    { bodyPattern: 'striped', headShape: 'flat' },
+    { bodyPattern: 'ribbon', headShape: 'horned' },
+    { bodyPattern: 'neon', headShape: 'round' },
+    { bodyPattern: 'dotted', headShape: 'pointed' }
+];
+
+function randomSkin(primary) {
+    const base = SNAKE_SKINS[Math.floor(Math.random() * SNAKE_SKINS.length)];
+    const secondary = getRandomColor();
+    const accent = getRandomColor();
+    return {
+        bodyPattern: base.bodyPattern,
+        headShape: base.headShape,
+        primary: primary || getRandomColor(),
+        secondary,
+        accent
+    };
+}
+
 function setupSlitherGame(io) {
     const slitherIo = io.of('/slither');
     const rooms = new Map();
@@ -77,6 +103,7 @@ function setupSlitherGame(io) {
             color: s.color,
             score: Math.floor(s.score),
             growthScore: Math.floor(s.growthScore),
+            skin: s.skin || null,
             body: s.body.map(pt => ({ x: Math.round(pt.x), y: Math.round(pt.y) })),
             shield: shield > 0.02 ? Math.round(shield * 100) / 100 : 0,
             growthHole: serializeGrowthHole(s)
@@ -142,6 +169,8 @@ function setupSlitherGame(io) {
         const initialLength = 10;
         const body = [];
         const history = [];
+        const primaryColor = getRandomColor();
+        const skin = randomSkin(primaryColor);
         
         for (let i = 0; i < initialLength; i++) {
             const pt = {
@@ -166,7 +195,8 @@ function setupSlitherGame(io) {
             score: 100,
             growthScore: 100,
             length: initialLength,
-            color: getRandomColor(),
+            color: primaryColor,
+            skin,
             body,
             history,
             alive: true,

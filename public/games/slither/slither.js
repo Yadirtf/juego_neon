@@ -456,6 +456,127 @@ function getSnakeBodyWidth(sizeValue) {
     return Math.min(32, 18 + sizeValue / 100);
 }
 
+function getSnakeSkin(snake) {
+    return snake.skin || {
+        bodyPattern: 'solid',
+        headShape: 'round',
+        primary: snake.color,
+        secondary: snake.color,
+        accent: snake.color
+    };
+}
+
+function drawSnakeBody(ctx, snake, offsetX, offsetY, isMe) {
+    const skin = getSnakeSkin(snake);
+    const w = getSnakeBodyWidth(snake.growthScore || snake.score);
+    const path = snake.body.map(pt => ({ x: pt.x + offsetX, y: pt.y + offsetY }));
+
+    ctx.save();
+    ctx.lineWidth = w;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowBlur = isMe ? 18 : 10;
+    ctx.shadowColor = skin.accent;
+
+    if (skin.bodyPattern === 'gradient') {
+        const start = path[0];
+        const end = path[path.length - 1] || start;
+        const gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+        gradient.addColorStop(0, skin.primary);
+        gradient.addColorStop(1, skin.secondary);
+        ctx.strokeStyle = gradient;
+    } else if (skin.bodyPattern === 'striped') {
+        ctx.strokeStyle = skin.primary;
+        ctx.setLineDash([w * 0.65, w * 0.45]);
+        ctx.lineDashOffset = 0;
+    } else if (skin.bodyPattern === 'dotted') {
+        ctx.strokeStyle = skin.secondary;
+        ctx.setLineDash([w * 0.18, w * 0.9]);
+    } else if (skin.bodyPattern === 'ribbon') {
+        ctx.strokeStyle = skin.secondary;
+        ctx.beginPath();
+        ctx.moveTo(path[0].x, path[0].y);
+        for (const pt of path) ctx.lineTo(pt.x, pt.y);
+        ctx.lineWidth = w + 6;
+        ctx.stroke();
+        ctx.strokeStyle = skin.primary;
+        ctx.lineWidth = w;
+        ctx.setLineDash([]);
+    } else if (skin.bodyPattern === 'neon') {
+        ctx.strokeStyle = skin.primary;
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = skin.accent;
+    } else {
+        ctx.strokeStyle = skin.primary;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i++) {
+        ctx.lineTo(path[i].x, path[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawSnakeHead(ctx, snake, hx, hy) {
+    const skin = getSnakeSkin(snake);
+    const radius = Math.min(20, 11 + snake.score / 150);
+
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(snake.angle);
+
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = skin.accent;
+    ctx.fillStyle = skin.primary;
+
+    if (skin.headShape === 'pointed') {
+        ctx.beginPath();
+        ctx.moveTo(radius, 0);
+        ctx.lineTo(-radius * 0.4, -radius * 0.6);
+        ctx.lineTo(-radius * 0.4, radius * 0.6);
+        ctx.closePath();
+        ctx.fill();
+    } else if (skin.headShape === 'flat') {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, radius, radius * 0.85, 0, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (skin.headShape === 'horned') {
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = skin.accent;
+        ctx.beginPath();
+        ctx.moveTo(radius * 0.45, -radius * 0.7);
+        ctx.lineTo(radius * 0.8, -radius * 0.2);
+        ctx.lineTo(radius * 0.1, -radius * 0.42);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(radius * 0.45, radius * 0.7);
+        ctx.lineTo(radius * 0.8, radius * 0.2);
+        ctx.lineTo(radius * 0.1, radius * 0.42);
+        ctx.closePath();
+        ctx.fill();
+    } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#1a2a35';
+    const eyeX = radius * 0.4;
+    const eyeY = radius * 0.35;
+    ctx.beginPath();
+    ctx.arc(eyeX, -eyeY, Math.max(2.4, radius * 0.18), 0, Math.PI * 2);
+    ctx.arc(eyeX, eyeY, Math.max(2.4, radius * 0.18), 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
 function drawHexagonPath(ctx, cx, cy, r) {
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
@@ -793,50 +914,15 @@ function renderLoop() {
 
             // Cuerpo
             if (snake.body && snake.body.length > 0) {
-                ctx.save();
-                ctx.strokeStyle = snake.color;
-                ctx.lineWidth   = getSnakeBodyWidth(snake.growthScore || snake.score);
-                ctx.lineCap     = 'round';
-                ctx.lineJoin    = 'round';
-                ctx.shadowBlur  = isMe ? 18 : 10;
-                ctx.shadowColor = snake.color;
-
-                ctx.beginPath();
-                ctx.moveTo(snake.x + offsetX, snake.y + offsetY);
-                for (let i = 0; i < snake.body.length; i++) {
-                    ctx.lineTo(snake.body[i].x + offsetX, snake.body[i].y + offsetY);
-                }
-                ctx.stroke();
-                ctx.restore();
+                drawSnakeBody(ctx, snake, offsetX, offsetY, isMe);
             }
 
             drawSpawnShieldTail(ctx, snake, offsetX, offsetY);
             if (snake.growthHole) maskTailIntoArenaHole(ctx, snake, offsetX, offsetY);
 
-            // Cabeza (con ojos)
             const hx = snake.x + offsetX;
             const hy = snake.y + offsetY;
-
-            ctx.save();
-            ctx.translate(hx, hy);
-            ctx.rotate(snake.angle);
-
-            // Resplandor cabeza
-            ctx.fillStyle   = '#ffffff';
-            ctx.shadowBlur  = 15;
-            ctx.shadowColor = snake.color;
-            ctx.beginPath();
-            ctx.arc(0, 0, Math.min(20, 11 + snake.score / 150), 0, Math.PI * 2);
-            ctx.fill();
-
-            // Ojos (escalados para cabeza más gruesa tipo Snake.io)
-            ctx.fillStyle = '#1a2a35';
-            ctx.shadowBlur = 0;
-            ctx.beginPath();
-            ctx.arc(5, -6, 3.5, 0, Math.PI * 2);
-            ctx.arc(5,  6, 3.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
+            drawSnakeHead(ctx, snake, hx, hy);
 
             // Alias sobre la serpiente
             ctx.save();
