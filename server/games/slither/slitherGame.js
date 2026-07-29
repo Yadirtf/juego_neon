@@ -280,7 +280,7 @@ function setupSlitherGame(io) {
         let avoidAngle = 0;
         
         // Distancia de detección de peligro
-        const SENSING_DIST = 120;
+        const SENSING_DIST = 150;
         const allSnakes = [...room.players.values(), ...room.bots.values()];
         
         for (const other of allSnakes) {
@@ -294,17 +294,20 @@ function setupSlitherGame(io) {
                 const d = Math.hypot(seg.x - bot.x, seg.y - bot.y);
                 
                 if (d < SENSING_DIST) {
-                    // Hay un segmento cerca al frente. Calculamos el ángulo relativo
                     const angleToSeg = Math.atan2(seg.y - bot.y, seg.x - bot.x);
                     let angleDiff = angleToSeg - bot.angle;
                     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
                     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
                     
-                    // Si está al frente (dentro de un cono de 120 grados)
-                    if (Math.abs(angleDiff) < Math.PI / 3) {
+                    // Si está al frente (dentro de un cono más amplio de 140 grados)
+                    if (Math.abs(angleDiff) < Math.PI * 0.4) {
                         dangerDetected = true;
-                        // Girar al lado opuesto del peligro
-                        avoidAngle = bot.angle - Math.sign(angleDiff) * (Math.PI / 2);
+                        const sideSign = Math.sign(angleDiff) || 1;
+                        if (d < 80) {
+                            avoidAngle = bot.angle - sideSign * Math.PI * 0.75;
+                        } else {
+                            avoidAngle = bot.angle - sideSign * (Math.PI / 2);
+                        }
                         break;
                     }
                 }
@@ -312,8 +315,8 @@ function setupSlitherGame(io) {
             if (dangerDetected) break;
         }
 
-        // Evitar paredes de la arena con advertencia de 200px
-        const WALL_WARN = 200;
+        // Evitar paredes de la arena con advertencia más amplia
+        const WALL_WARN = 220;
         if (bot.x < WALL_WARN || bot.x > WORLD_SIZE - WALL_WARN || bot.y < WALL_WARN || bot.y > WORLD_SIZE - WALL_WARN) {
             dangerDetected = true;
             if (bot.x < WALL_WARN) avoidAngle = 0; // Girar a la derecha
@@ -331,11 +334,10 @@ function setupSlitherGame(io) {
             return;
         }
 
-        // 2. Mecánica de ataque / Interposición (Cut-Off de nivel bajo contra el jugador)
+        // 2. Mecánica de ataque / Interposición (Cut-Off de nivel bajo contra el usuario)
         let attacking = false;
-        // Solo bots con suficiente score (para tener cuerpo largo) y con probabilidad del 25% (bots cuyo ID termina en múltiplo de 4)
         const botIdNumber = parseInt(bot.id.split('_').pop()) || 0;
-        const shouldAttack = bot.growthScore > 200 && (botIdNumber % 4 === 0);
+        const shouldAttack = bot.growthScore > 250 && (botIdNumber % 4 === 0);
         
         if (shouldAttack) {
             for (const player of room.players.values()) {
@@ -343,60 +345,62 @@ function setupSlitherGame(io) {
                 
                 const distToPlayer = Math.hypot(player.x - bot.x, player.y - bot.y);
                 
-                // Si el jugador está en un rango de ataque (150 a 300px)
-                if (distToPlayer > 150 && distToPlayer < 300) {
-                    // Calcular posición futura del jugador para cruzarse en su camino
-                    const leadTime = 12; // Número de ticks al futuro
+                if (distToPlayer > 180 && distToPlayer < 280) {
+                    const leadTime = 12;
                     const targetX = player.x + Math.cos(player.angle) * player.speed * leadTime;
                     const targetY = player.y + Math.sin(player.angle) * player.speed * leadTime;
-                    
-                    bot.targetAngle = Math.atan2(targetY - bot.y, targetX - bot.x);
-                    
-                    // Activar turbo de forma táctica para rebasar e interponerse
-                    bot.boosting = Math.random() < 0.15;
-                    attacking = true;
-                    break;
+                    const targetAngle = Math.atan2(targetY - bot.y, targetX - bot.x);
+                    const angleDiff = Math.abs(normalizeAngleDiff(targetAngle - bot.angle));
+                    if (angleDiff < 1.1) {
+                        bot.targetAngle = targetAngle;
+                        bot.boosting = Math.random() < 0.12;
+                        attacking = true;
+                        break;
+                    }
                 }
             }
         }
 
         if (attacking) return;
 
-        // 3. Buscar comida (Comportamiento normal e independiente)
+        // 3. Buscar comida (Preferir restos / remain pellets)
         if (bot.botTimer % 12 === 0) {
             let closest = null;
-            let minDist = 350;
+            let bestScore = Infinity;
             
             for (const p of room.pellets.values()) {
                 const d = Math.hypot(p.x - bot.x, p.y - bot.y);
-                
-                if (d < minDist) {
-                    // Evitar orbitar pellets: si está muy cerca y requiere un giro muy cerrado, ignorar
-                    const angleToPellet = Math.atan2(p.y - bot.y, p.x - bot.x);
-                    let angleDiff = angleToPellet - bot.angle;
-                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-                    
-                    // Si está a menos de 45px y requiere un giro brusco (> 0.6 rad), ignoramos este pellet
-                    // Esto evita completamente que los bots se queden orbitando un orbe en círculos infinitos
-                    if (d < 45 && Math.abs(angleDiff) > 0.6) {
-                        continue;
-                    }
-                    
-                    minDist = d;
+                let desirability = d;
+                if (p.isRemain) {
+                    desirability -= 90;
+                } else if (p.value <= 1) {
+                    desirability += 20;
+                }
+
+                if (desirability > 520) continue;
+
+                const angleToPellet = Math.atan2(p.y - bot.y, p.x - bot.x);
+                let angleDiff = angleToPellet - bot.angle;
+                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+
+                if (d < 45 && Math.abs(angleDiff) > 0.55) continue;
+                if (desirability < bestScore) {
+                    bestScore = desirability;
                     closest = p;
                 }
             }
 
             if (closest) {
                 bot.targetAngle = Math.atan2(closest.y - bot.y, closest.x - bot.x);
-            } else if (Math.random() < 0.20) {
-                // Merodear de forma natural
-                bot.targetAngle += (Math.random() - 0.5) * 1.2;
+                if (closest.isRemain && bot.growthScore > 180 && Math.random() < 0.28) {
+                    bot.boosting = true;
+                }
+            } else if (Math.random() < 0.18) {
+                bot.targetAngle += (Math.random() - 0.5) * 1.0;
             }
         }
 
-        // Apagar boost de forma normal si no está en peligro ni atacando
         if (!dangerDetected && !attacking) {
             bot.boosting = false;
         }
@@ -477,7 +481,7 @@ function setupSlitherGame(io) {
 
         const MIN_SCORE = 100;
         const isBoosting = snake.boosting && snake.growthScore > MIN_SCORE;
-        const currentSpeed = isBoosting ? 8.5 : 4.8;
+        const currentSpeed = isBoosting ? 12.2 : 6.4;
         snake.speed = currentSpeed;
 
         if (isBoosting) {
@@ -525,6 +529,7 @@ function setupSlitherGame(io) {
             snake.lastX = snake.x;
             snake.lastY = snake.y;
             snake.alive = false;
+            spawnDeathPellets(room, snake);
             return;
         }
 
