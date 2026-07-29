@@ -40,6 +40,22 @@ const joystickZone        = document.getElementById('joystickZone');
 const joystickStick       = document.getElementById('joystickStick');
 const mobileControlsContainer = document.getElementById('mobileControlsContainer');
 const boostBarFill        = document.getElementById('boostBarFill');
+const collectFeedback     = document.getElementById('collectFeedback');
+
+let collectFeedbackTimeout = null;
+
+function showCollectFeedback(value, isRemain) {
+    if (!collectFeedback) return;
+    const label = isRemain ? `+${value} RESTO` : `+${value} PUNTO`;
+    collectFeedback.textContent = label;
+    collectFeedback.classList.add('visible');
+    collectFeedback.classList.toggle('remain', isRemain);
+
+    if (collectFeedbackTimeout) clearTimeout(collectFeedbackTimeout);
+    collectFeedbackTimeout = setTimeout(() => {
+        collectFeedback.classList.remove('visible');
+    }, 900);
+}
 
 // ─── Estado del Joystick Virtual ─────────────────────────────────────────────
 let joystickActive    = false;
@@ -334,7 +350,8 @@ socket.on('tickState', (data) => {
         if (boostBarFill) {
             const MIN_SCORE = 100;
             const MAX_DISPLAY_SCORE = 1500;
-            const pct = Math.min(100, Math.max(0, ((data.me.score - MIN_SCORE) / (MAX_DISPLAY_SCORE - MIN_SCORE)) * 100));
+            const visibleGrowth = data.me.growthScore || data.me.score;
+            const pct = Math.min(100, Math.max(0, ((visibleGrowth - MIN_SCORE) / (MAX_DISPLAY_SCORE - MIN_SCORE)) * 100));
             boostBarFill.style.width = pct + '%';
             // Color: verde cuando llena, naranja cuando baja, rojo cuando crítica
             if (pct > 50) {
@@ -349,6 +366,10 @@ socket.on('tickState', (data) => {
     if (data.leaderboard) {
         renderLeaderboard(data.leaderboard);
     }
+});
+
+socket.on('pelletCollected', ({ value, isRemain }) => {
+    showCollectFeedback(value, isRemain);
 });
 
 socket.on('gameOver', ({ finalScore }) => {
@@ -418,8 +439,8 @@ function interpolateSnakes(prevSnakes, nextSnakes, alpha) {
     });
 }
 
-function getSnakeBodyWidth(score) {
-    return Math.min(32, 18 + score / 100);
+function getSnakeBodyWidth(sizeValue) {
+    return Math.min(32, 18 + sizeValue / 100);
 }
 
 function drawHexagonPath(ctx, cx, cy, r) {
@@ -491,7 +512,7 @@ function drawArenaGrowthHole(ctx, snake, offsetX, offsetY) {
     const hole = snake.growthHole;
     if (!hole) return;
 
-    const w = getSnakeBodyWidth(snake.score);
+    const w = getSnakeBodyWidth(snake.growthScore || snake.score);
     const radius = w * 0.58;
     const fade = hole.fade || 0;
     const alpha = 1 - fade * 0.85;
@@ -536,7 +557,7 @@ function drawTailIntoArenaHole(ctx, snake, offsetX, offsetY) {
 
     const hole = snake.growthHole;
     const tail = snake.body[snake.body.length - 1];
-    const w = getSnakeBodyWidth(snake.score);
+    const w = getSnakeBodyWidth(snake.growthScore || snake.score);
     const hx = hole.x + offsetX;
     const hy = hole.y + offsetY;
     const tx = tail.x + offsetX;
@@ -562,7 +583,7 @@ function maskTailIntoArenaHole(ctx, snake, offsetX, offsetY) {
 
     const hole = snake.growthHole;
     const tail = snake.body[snake.body.length - 1];
-    const w = getSnakeBodyWidth(snake.score);
+    const w = getSnakeBodyWidth(snake.growthScore || snake.score);
     const hx = hole.x + offsetX;
     const hy = hole.y + offsetY;
     const tx = tail.x + offsetX;
@@ -585,7 +606,7 @@ function drawSpawnShieldTail(ctx, snake, offsetX, offsetY) {
     const shield = snake.shield;
     if (!shield || shield <= 0.02 || !snake.body || snake.body.length < 2) return;
 
-    const w = getSnakeBodyWidth(snake.score);
+    const w = getSnakeBodyWidth(snake.growthScore || snake.score);
     const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 110);
     const tailStart = Math.max(0, Math.floor(snake.body.length * 0.45));
 
@@ -644,7 +665,11 @@ function renderLoop() {
         const myPrev = prevState && prevState.me;
         const myNext = nextState && nextState.me;
         targetX = (myPrev && myNext) ? lerp(myPrev.x, myNext.x, alpha) : gameState.me.x;
-        targetY = (myPrev && myNext) ? lerp(myPrev.y, myNext.y, alpha) : gameState.me.y;
+        const baseY = (myPrev && myNext) ? lerp(myPrev.y, myNext.y, alpha) : gameState.me.y;
+        const bodyLength = gameState.me.body ? gameState.me.body.length : 10;
+        const sizeFactor = Math.min(1, Math.max(0, (bodyLength - 10) / 80));
+        const verticalBias = 40 - 65 * sizeFactor;
+        targetY = baseY - verticalBias;
     } else if (spectatorPos) {
         // Modo espectador: cámara fija en el punto donde murió
         targetX = spectatorPos.x;
@@ -757,7 +782,7 @@ function renderLoop() {
             if (snake.body && snake.body.length > 0) {
                 ctx.save();
                 ctx.strokeStyle = snake.color;
-                ctx.lineWidth   = getSnakeBodyWidth(snake.score);
+                ctx.lineWidth   = getSnakeBodyWidth(snake.growthScore || snake.score);
                 ctx.lineCap     = 'round';
                 ctx.lineJoin    = 'round';
                 ctx.shadowBlur  = isMe ? 18 : 10;

@@ -16,13 +16,15 @@ function setupSlitherGame(io) {
         return NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)];
     }
 
-    function createPellet(x, y, value = 8) {
+    function createPellet(x, y, value = 1, growthValue = undefined) {
+        const effectiveGrowth = growthValue !== undefined ? growthValue : (value === 1 ? 8 : value);
         return {
             id: ++pelletIdCounter,
             x: x !== undefined ? x : Math.floor(Math.random() * (WORLD_SIZE - 100)) + 50,
             y: y !== undefined ? y : Math.floor(Math.random() * (WORLD_SIZE - 100)) + 50,
-            radius: Math.min(16, 4 + value * 0.5),
+            radius: Math.min(16, 4 + effectiveGrowth * 0.5),
             value: value,
+            growthValue: effectiveGrowth,
             color: getRandomColor()
         };
     }
@@ -74,6 +76,7 @@ function setupSlitherGame(io) {
             angle: s.angle,
             color: s.color,
             score: Math.floor(s.score),
+            growthScore: Math.floor(s.growthScore),
             body: s.body.map(pt => ({ x: Math.round(pt.x), y: Math.round(pt.y) })),
             shield: shield > 0.02 ? Math.round(shield * 100) / 100 : 0,
             growthHole: serializeGrowthHole(s)
@@ -161,6 +164,7 @@ function setupSlitherGame(io) {
             speed: 4.8,
             boosting: false,
             score: 100,
+            growthScore: 100,
             length: initialLength,
             color: getRandomColor(),
             body,
@@ -211,11 +215,11 @@ function setupSlitherGame(io) {
         if (!snake.body || snake.body.length === 0) return;
 
         // Distribución justa de puntos: el 80% del score de la serpiente muerta se convierte en comida
-        const totalDeathScore = Math.floor(snake.score * 0.8);
+        const totalDeathScore = Math.floor(snake.growthScore * 0.8);
         
         // Dejamos caer un orbe aproximadamente cada 1.5 segmentos para que queden abundantes pero juntos
         const numPellets = Math.max(6, Math.floor(snake.body.length / 1.5));
-        const valuePerPellet = Math.max(2, Math.floor(totalDeathScore / numPellets));
+        const valuePerPellet = Math.max(3, Math.floor(totalDeathScore / numPellets));
 
         for (let i = 0; i < numPellets; i++) {
             // Distribuir a lo largo de los segmentos del cuerpo
@@ -228,7 +232,7 @@ function setupSlitherGame(io) {
             const px = pt.x + Math.cos(dispAngle) * dispDist;
             const py = pt.y + Math.sin(dispAngle) * dispDist;
 
-            const p = createPellet(px, py, valuePerPellet);
+            const p = createPellet(px, py, 3, valuePerPellet);
             // Los restos toman el color neón de la serpiente muerta (como en el original)
             p.color = snake.color;
             p.isRemain = true;
@@ -291,7 +295,7 @@ function setupSlitherGame(io) {
         if (dangerDetected) {
             bot.targetAngle = avoidAngle;
             // Ocasionalmente acelerar para escapar del peligro
-            if (Math.random() < 0.05 && bot.score > 150) {
+            if (Math.random() < 0.05 && bot.growthScore > 150) {
                 bot.boosting = true;
             }
             return;
@@ -301,7 +305,7 @@ function setupSlitherGame(io) {
         let attacking = false;
         // Solo bots con suficiente score (para tener cuerpo largo) y con probabilidad del 25% (bots cuyo ID termina en múltiplo de 4)
         const botIdNumber = parseInt(bot.id.split('_').pop()) || 0;
-        const shouldAttack = bot.score > 200 && (botIdNumber % 4 === 0);
+        const shouldAttack = bot.growthScore > 200 && (botIdNumber % 4 === 0);
         
         if (shouldAttack) {
             for (const player of room.players.values()) {
@@ -390,8 +394,19 @@ function setupSlitherGame(io) {
 
     function tryEatPellet(snake, room, pId, p) {
         snake.score += p.value;
+        snake.growthScore += p.growthValue || p.value;
         if (p.isRemain) registerRemainMeal(snake);
         room.pellets.delete(pId);
+
+        if (!snake.isBot) {
+            const playerSocket = slitherIo.sockets.get(snake.id);
+            if (playerSocket) {
+                playerSocket.emit('pelletCollected', {
+                    value: p.value,
+                    isRemain: Boolean(p.isRemain)
+                });
+            }
+        }
     }
 
     function updateSnakePosition(snake, room) {
@@ -431,21 +446,25 @@ function setupSlitherGame(io) {
         }
 
         const MIN_SCORE = 100;
-        const isBoosting = snake.boosting && snake.score > MIN_SCORE;
+        const isBoosting = snake.boosting && snake.growthScore > MIN_SCORE;
         const currentSpeed = isBoosting ? 8.5 : 4.8;
         snake.speed = currentSpeed;
 
         if (isBoosting) {
             // Consumo de energía más rápido: 0.8 por tick (a 40 FPS son 32 pts/seg, se encoge visiblemente rápido)
             snake.score -= 0.8;
+            snake.growthScore -= 0.8;
             if (snake.score < MIN_SCORE) {
                 snake.score = MIN_SCORE;
+            }
+            if (snake.growthScore < MIN_SCORE) {
+                snake.growthScore = MIN_SCORE;
             }
             // Solo botar orbes ~3.5% del tiempo (original usa ~3-4%)
             if (Math.random() < 0.035) {
                 const tail = snake.body[snake.body.length - 1];
                 if (tail) {
-                    const p = createPellet(tail.x, tail.y, 1);
+                    const p = createPellet(tail.x, tail.y, 1, 8);
                     room.pellets.set(p.id, p);
                 }
             }
@@ -481,7 +500,7 @@ function setupSlitherGame(io) {
 
         // Distancia fija entre segmentos (igual que en Snake.io)
         const SEGMENT_DISTANCE = 6;
-        const desiredSegments = Math.floor(6 + snake.score / 15);
+        const desiredSegments = Math.floor(6 + snake.growthScore / 15);
         const newBody = [];
 
         // El primer segmento es la cabeza

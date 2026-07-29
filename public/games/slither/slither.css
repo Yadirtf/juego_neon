@@ -227,6 +227,47 @@ h1.cyber-title {
     color: #00ffff;
 }
 
+.collect-feedback {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translate(-50%, -10px);
+    z-index: 120;
+    pointer-events: none;
+    background: rgba(4, 6, 15, 0.85);
+    border: 1px solid rgba(57, 255, 20, 0.45);
+    color: #f8f8ff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 16px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    box-shadow: 0 0 30px rgba(57, 255, 20, 0.18);
+    opacity: 0;
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.collect-feedback.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.collect-feedback span {
+    display: inline-block;
+    min-width: 44px;
+}
+
+.collect-feedback.remain {
+    border-color: rgba(255, 165, 0, 0.7);
+    box-shadow: 0 0 28px rgba(255, 165, 0, 0.16);
+}
+
+.collect-feedback.remain {
+    background: rgba(22, 8, 34, 0.92);
+}
+
 #minimapWrapper {
     position: fixed;
     bottom: 15px;
